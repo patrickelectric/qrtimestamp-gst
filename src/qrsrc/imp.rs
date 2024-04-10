@@ -10,9 +10,6 @@ use std::u32;
 
 use qrc::QRCode;
 use once_cell::sync::Lazy;
-use sinais::*;
-
-use tokio::time::{sleep, Duration};
 
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
@@ -23,10 +20,6 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
 });
 
 const DEFAULT_FPS: u32 = 30;
-
-struct VideoHandler {
-    rx: std::sync::mpsc::Receiver<Vec<u8>>,
-}
 
 #[derive(Debug, Clone, Copy)]
 struct Settings {
@@ -73,27 +66,14 @@ pub struct QRTimeStampSrc {
     settings: Mutex<Settings>,
     state: Mutex<State>,
     clock_wait: Mutex<ClockWait>,
-    video_handler: Mutex<VideoHandler>,
 }
 
 impl Default for QRTimeStampSrc {
     fn default() -> Self {
-        let (tx, rx) = std::sync::mpsc::sync_channel(3);
-        _spawn("QCode generator".into(), async move {
-            loop {
-                let time = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-                let metadata = time.as_millis().to_string();
-                let qr = QRCode::from_string(metadata);
-                let _ = tx.try_send(qr.to_png(200).as_raw().clone());
-                sleep(Duration::from_millis(33)).await;
-            }
-        });
         Self {
             settings: Default::default(),
             state: Default::default(),
             clock_wait: Default::default(),
-            video_handler: Mutex::new(VideoHandler { rx }),
-
         }
     }
 }
@@ -348,9 +328,13 @@ impl PushSrcImpl for QRTimeStampSrc {
             let mut map = buffer.map_writable().unwrap();
             let data = map.as_mut_slice();
 
-            // Transform RGBA to RGB
-            if let Ok(image_vec) = self.video_handler.lock().unwrap().rx.recv() {
-                for (output, chunk) in data.chunks_exact_mut(3).zip(image_vec.chunks_exact(4)) {
+            {
+                let time = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+                let metadata = time.as_millis().to_string();
+                let qr = QRCode::from_string(metadata);
+
+                // RGBA to RGB transformation
+                for (output, chunk) in data.chunks_exact_mut(3).zip(qr.to_png(200).as_raw().chunks_exact(4)) {
                     output.copy_from_slice(&chunk[0..3]);
                 }
             }
