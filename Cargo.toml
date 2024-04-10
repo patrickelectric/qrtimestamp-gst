@@ -8,7 +8,7 @@ build = "build.rs"
 repository = "https://github.com/patrickelectric/qrtimestamp"
 
 [lib]
-name = "qrtimestampsrc"
+name = "gstqrtimestamp"
 crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
