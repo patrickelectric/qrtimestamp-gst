@@ -10,7 +10,7 @@ fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
 }
 
 gst::plugin_define!(
-    qrtimestamp,
+    qrtimestamp, // This name should be the lib name in Cargo.toml without the gst prefix
     "license of the plugin, source package name, binary package name, origin where it comes from alllalalalalala \0",
     plugin_init,
     concat!(env!("CARGO_PKG_VERSION"), "-", env!("COMMIT_ID")),
