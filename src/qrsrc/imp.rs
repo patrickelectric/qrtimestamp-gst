@@ -24,11 +24,15 @@ const DEFAULT_FPS: u32 = 30;
 #[derive(Debug, Clone, Copy)]
 struct Settings {
     fps: u32,
+    num_buffers: u32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { fps: DEFAULT_FPS }
+        Settings {
+            fps: DEFAULT_FPS,
+            num_buffers: 0,
+        }
     }
 }
 
@@ -86,13 +90,21 @@ impl ObjectSubclass for QRTimeStampSrc {
 impl ObjectImpl for QRTimeStampSrc {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-            vec![glib::ParamSpecUInt::builder("fps")
-                .nick("Frequency")
-                .blurb("Frequency")
-                .minimum(1)
-                .default_value(DEFAULT_FPS)
-                .mutable_playing()
-                .build()]
+            vec![
+                glib::ParamSpecUInt::builder("fps")
+                    .nick("Frequency")
+                    .blurb("Frequency")
+                    .minimum(1)
+                    .default_value(DEFAULT_FPS)
+                    .mutable_playing()
+                    .build(),
+                glib::ParamSpecUInt::builder("num-buffers")
+                    .minimum(0)
+                    .default_value(0)
+                    .maximum(u32::MAX)
+                    .mutable_playing()
+                    .build(),
+            ]
         });
 
         PROPERTIES.as_ref()
@@ -120,6 +132,18 @@ impl ObjectImpl for QRTimeStampSrc {
                 );
                 settings.fps = fps;
             }
+            "num-buffers" => {
+                let mut settings = self.settings.lock().unwrap();
+                let num_buffers = value.get().expect("type checked upstream");
+                gst::info!(
+                    CAT,
+                    imp: self,
+                    "Changing num-buffers from {} to {}",
+                    settings.num_buffers,
+                    num_buffers
+                );
+                settings.num_buffers = num_buffers;
+            }
             _ => unimplemented!(),
         }
     }
@@ -129,6 +153,10 @@ impl ObjectImpl for QRTimeStampSrc {
             "fps" => {
                 let settings = self.settings.lock().unwrap();
                 settings.fps.to_value()
+            }
+            "num-buffers" => {
+                let settings = self.settings.lock().unwrap();
+                settings.num_buffers.to_value()
             }
             _ => unimplemented!(),
         }
@@ -338,6 +366,9 @@ impl PushSrcImpl for QRTimeStampSrc {
         }
 
         state.sample_offset += 1;
+        if state.sample_offset > settings.num_buffers as u64 {
+            return Err(gst::FlowError::Eos);
+        }
         drop(state);
         Ok(CreateSuccess::NewBuffer(buffer))
     }
