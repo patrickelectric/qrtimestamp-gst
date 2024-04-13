@@ -7,3 +7,9 @@ To run:
 cargo build --release
 gst-launch-1.0 --gst-plugin-path=$PWD/target/release qrtimestampsrc ! fpsdisplaysink
 ```
+
+If you want to decode and get the time difference, you can run:
+```bash
+cargo build --release
+gst-launch-1.0 --gst-plugin-path=$PWD/target/release/ qrtimestampsrc ! qrtimestampsink
+```
