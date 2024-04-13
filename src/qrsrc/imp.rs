@@ -164,8 +164,8 @@ impl ElementImpl for QRTimeStampSrc {
         static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
             let caps = gst_video::VideoCapsBuilder::default()
                 .format_list([gst_video::VideoFormat::Rgb])
-                .height_range(40..i32::MAX)
-                .width_range(40..i32::MAX)
+                .height_range(100..i32::MAX)
+                .width_range(100..i32::MAX)
                 .framerate_range(gst::Fraction::from(10)..gst::Fraction::from(240))
                 .build();
             // The src pad template must be named "src" for basesrc
