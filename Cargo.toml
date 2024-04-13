@@ -21,5 +21,7 @@ gst = { package = "gstreamer", version = "0.22", features = ["v1_22"] }
 gst-base = { package = "gstreamer-base", version = "0.22", features = ["v1_22"] }
 gst-video = { package = "gstreamer-video", version = "0.22", features = ["v1_22"] }
 
+image = "0.24"
 once_cell = "1.19.0"
-qrc = "0.0.5"
+qrc = "0.0.5" # Encode
+rqrr = "0.6" # Decode, TODO: Use it to replace qrc
