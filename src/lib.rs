@@ -2,9 +2,11 @@
 
 use gst::glib;
 
+mod qrsink;
 mod qrsrc;
 
 fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
+    qrsink::register(plugin)?;
     qrsrc::register(plugin)?;
     Ok(())
 }
