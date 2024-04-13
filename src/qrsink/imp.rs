@@ -122,6 +122,9 @@ impl BaseSinkImpl for QRTimeStampSink {
         let mut qrcode_image =
             rqrr::PreparedImage::prepare(image::DynamicImage::ImageRgb8(image_buffer).to_luma8());
         let grids = qrcode_image.detect_grids();
+        if grids.len() == 0 {
+            return Ok(gst::FlowSuccess::Ok);
+        }
         let (_meta, content) = grids[0].decode().unwrap();
         let diff = time.as_millis() - content.parse::<u128>().unwrap();
         println!("Time difference: {diff} ms");
