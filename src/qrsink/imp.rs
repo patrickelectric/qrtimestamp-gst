@@ -89,7 +89,6 @@ impl BaseSinkImpl for QRTimeStampSink {
     fn set_caps(&self, caps: &gst::Caps) -> Result<(), gst::LoggableError> {
         // Here you would parse the caps to ensure they are what you expect
         gst::info!(CAT, "Caps set: {caps}");
-        dbg!("Caps set:", caps);
 
         let info = gst_video::VideoInfo::from_caps(caps).map_err(|_| {
             gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {}", caps)
