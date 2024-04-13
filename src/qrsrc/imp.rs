@@ -8,8 +8,8 @@ use gst_base::subclass::prelude::*;
 use std::sync::Mutex;
 use std::u32;
 
-use qrc::QRCode;
 use once_cell::sync::Lazy;
+use qrc::QRCode;
 
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
@@ -28,9 +28,7 @@ struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings {
-            fps: DEFAULT_FPS,
-        }
+        Settings { fps: DEFAULT_FPS }
     }
 }
 
@@ -88,15 +86,13 @@ impl ObjectSubclass for QRTimeStampSrc {
 impl ObjectImpl for QRTimeStampSrc {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-            vec![
-                glib::ParamSpecUInt::builder("fps")
-                    .nick("Frequency")
-                    .blurb("Frequency")
-                    .minimum(1)
-                    .default_value(DEFAULT_FPS)
-                    .mutable_playing()
-                    .build(),
-            ]
+            vec![glib::ParamSpecUInt::builder("fps")
+                .nick("Frequency")
+                .blurb("Frequency")
+                .minimum(1)
+                .default_value(DEFAULT_FPS)
+                .mutable_playing()
+                .build()]
         });
 
         PROPERTIES.as_ref()
@@ -158,9 +154,7 @@ impl ElementImpl for QRTimeStampSrc {
     fn pad_templates() -> &'static [gst::PadTemplate] {
         static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
             let caps = gst_video::VideoCapsBuilder::default()
-                .format_list([
-                    gst_video::VideoFormat::Rgb,
-                ])
+                .format_list([gst_video::VideoFormat::Rgb])
                 .height(200)
                 .width(200)
                 .framerate_range(gst::Fraction::from(1)..gst::Fraction::from(100))
@@ -252,7 +246,7 @@ impl BaseSrcImpl for QRTimeStampSrc {
                 let state = self.state.lock().unwrap();
                 if let Some(ref _info) = state.info {
                     let latency = gst::ClockTime::SECOND
-                        .mul_div_floor(1 as u64,  30 as u64)
+                        .mul_div_floor(1 as u64, 30 as u64)
                         .unwrap();
                     gst::info!(CAT, imp: self, "Returning latency {}", latency);
                     return true;
@@ -293,7 +287,6 @@ impl BaseSrcImpl for QRTimeStampSrc {
     }
 }
 
-
 impl PushSrcImpl for QRTimeStampSrc {
     fn create(
         &self,
@@ -307,8 +300,7 @@ impl PushSrcImpl for QRTimeStampSrc {
             return Err(gst::FlowError::NotNegotiated);
         };
 
-        let mut buffer =
-            gst::Buffer::with_size((200 as usize) * (200 as usize) * 3).unwrap();
+        let mut buffer = gst::Buffer::with_size((200 as usize) * (200 as usize) * 3).unwrap();
         {
             let buffer = buffer.get_mut().unwrap();
 
@@ -316,7 +308,7 @@ impl PushSrcImpl for QRTimeStampSrc {
                 .mul_div_floor(*gst::ClockTime::SECOND, settings.fps as u64)
                 .map(gst::ClockTime::from_nseconds)
                 .unwrap();
-            
+
             let pts = (state.sample_offset)
                 .mul_div_floor(*gst::ClockTime::SECOND, settings.fps as u64)
                 .map(gst::ClockTime::from_nseconds)
@@ -329,17 +321,22 @@ impl PushSrcImpl for QRTimeStampSrc {
             let data = map.as_mut_slice();
 
             {
-                let time = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+                let time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default();
                 let metadata = time.as_millis().to_string();
                 let qr = QRCode::from_string(metadata);
 
                 // RGBA to RGB transformation
-                for (output, chunk) in data.chunks_exact_mut(3).zip(qr.to_png(200).as_raw().chunks_exact(4)) {
+                for (output, chunk) in data
+                    .chunks_exact_mut(3)
+                    .zip(qr.to_png(200).as_raw().chunks_exact(4))
+                {
                     output.copy_from_slice(&chunk[0..3]);
                 }
             }
         }
-        
+
         state.sample_offset += 1;
         drop(state);
         Ok(CreateSuccess::NewBuffer(buffer))
