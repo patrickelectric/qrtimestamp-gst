@@ -1,3 +1,4 @@
+use glib::bool_error;
 use gst::glib;
 use gst::prelude::*;
 use gst::subclass::prelude::*;
@@ -20,10 +21,13 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
 });
 
 const DEFAULT_FPS: i32 = 30;
+const DEFAULT_SIZE: usize = 40;
 
 #[derive(Debug, Clone, Copy)]
 struct Settings {
     fps: gst::Fraction,
+    width: usize,
+    height: usize,
     num_buffers: u32,
 }
 
@@ -31,6 +35,8 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             fps: gst::Fraction::from((1, DEFAULT_FPS)),
+            width: DEFAULT_SIZE,
+            height: DEFAULT_SIZE,
             num_buffers: u32::MAX,
         }
     }
@@ -158,8 +164,8 @@ impl ElementImpl for QRTimeStampSrc {
         static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
             let caps = gst_video::VideoCapsBuilder::default()
                 .format_list([gst_video::VideoFormat::Rgb])
-                .height(200)
-                .width(200)
+                .height_range(40..i32::MAX)
+                .width_range(40..i32::MAX)
                 .framerate_range(gst::Fraction::from(10)..gst::Fraction::from(240))
                 .build();
             // The src pad template must be named "src" for basesrc
@@ -204,6 +210,16 @@ impl BaseSrcImpl for QRTimeStampSrc {
         gst::debug!(CAT, imp: self, "Configuring for caps {}", caps);
 
         self.settings.lock().unwrap().fps = gst_video::VideoInfo::from_caps(&caps).unwrap().fps();
+        let width = gst_video::VideoInfo::from_caps(&caps).unwrap().width() as usize;
+        let height = gst_video::VideoInfo::from_caps(&caps).unwrap().height() as usize;
+        if width != height {
+            return Err(gst::LoggableError::new(
+                *CAT,
+                bool_error!("Width ({width}) and height ({height}) should be from the same size"),
+            ));
+        }
+        self.settings.lock().unwrap().width = width;
+        self.settings.lock().unwrap().height = height;
 
         let mut state = self.state.lock().unwrap();
 
@@ -305,8 +321,7 @@ impl PushSrcImpl for QRTimeStampSrc {
             gst::element_imp_error!(self, gst::CoreError::Negotiation, ["Have no caps yet"]);
             return Err(gst::FlowError::NotNegotiated);
         };
-
-        let mut buffer = gst::Buffer::with_size((200 as usize) * (200 as usize) * 3).unwrap();
+        let mut buffer = gst::Buffer::with_size(settings.width * settings.height * 3).unwrap();
         {
             let buffer = buffer.get_mut().unwrap();
 
@@ -334,7 +349,7 @@ impl PushSrcImpl for QRTimeStampSrc {
                 // RGBA to RGB transformation
                 for (output, chunk) in data
                     .chunks_exact_mut(3)
-                    .zip(qr.to_png(200).as_raw().chunks_exact(4))
+                    .zip(qr.to_png(settings.width as u32).as_raw().chunks_exact(4))
                 {
                     output.copy_from_slice(&chunk[0..3]);
                 }
