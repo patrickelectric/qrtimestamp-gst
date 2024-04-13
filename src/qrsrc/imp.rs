@@ -29,6 +29,8 @@ struct Settings {
     width: usize,
     height: usize,
     num_buffers: u32,
+    time_frame_creation: u128,
+    time_previous_iteration: u128,
 }
 
 impl Default for Settings {
@@ -38,6 +40,8 @@ impl Default for Settings {
             width: DEFAULT_SIZE,
             height: DEFAULT_SIZE,
             num_buffers: u32::MAX,
+            time_frame_creation: 0,
+            time_previous_iteration: 0,
         }
     }
 }
@@ -314,7 +318,15 @@ impl PushSrcImpl for QRTimeStampSrc {
         &self,
         _buffer: Option<&mut gst::BufferRef>,
     ) -> Result<CreateSuccess, gst::FlowError> {
-        let settings = *self.settings.lock().unwrap();
+        let mut settings = self.settings.lock().unwrap();
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_micros();
+
+        if settings.time_previous_iteration == 0 {
+            settings.time_previous_iteration = current_time;
+        }
 
         let mut state = self.state.lock().unwrap();
         if state.info.is_none() {
@@ -343,7 +355,11 @@ impl PushSrcImpl for QRTimeStampSrc {
                 let time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default();
-                let metadata = time.as_millis().to_string();
+                let metadata = (time.as_millis()
+                    + (settings.time_frame_creation + current_time
+                        - settings.time_previous_iteration)
+                        / 1000)
+                    .to_string();
                 let qr = QRCode::from_string(metadata);
 
                 // RGBA to RGB transformation
@@ -354,6 +370,13 @@ impl PushSrcImpl for QRTimeStampSrc {
                     output.copy_from_slice(&chunk[0..3]);
                 }
             }
+
+            settings.time_frame_creation = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_micros()
+                - current_time;
+            settings.time_previous_iteration = current_time;
         }
 
         state.sample_offset += 1;

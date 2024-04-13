@@ -126,7 +126,12 @@ impl BaseSinkImpl for QRTimeStampSink {
             return Ok(gst::FlowSuccess::Ok);
         }
         let (_meta, content) = grids[0].decode().unwrap();
-        let diff = time.as_millis() - content.parse::<u128>().unwrap();
+        let content = content.parse::<u128>().unwrap();
+        let diff = if time.as_millis() > content {
+            time.as_millis() - content
+        } else {
+            0
+        };
         println!("Time difference: {diff} ms");
         Ok(gst::FlowSuccess::Ok)
     }
