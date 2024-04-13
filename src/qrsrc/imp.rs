@@ -19,19 +19,19 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     )
 });
 
-const DEFAULT_FPS: u32 = 30;
+const DEFAULT_FPS: i32 = 30;
 
 #[derive(Debug, Clone, Copy)]
 struct Settings {
-    fps: u32,
+    fps: gst::Fraction,
     num_buffers: u32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            fps: DEFAULT_FPS,
-            num_buffers: 0,
+            fps: gst::Fraction::from((1, DEFAULT_FPS)),
+            num_buffers: u32::MAX,
         }
     }
 }
@@ -90,21 +90,12 @@ impl ObjectSubclass for QRTimeStampSrc {
 impl ObjectImpl for QRTimeStampSrc {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-            vec![
-                glib::ParamSpecUInt::builder("fps")
-                    .nick("Frequency")
-                    .blurb("Frequency")
-                    .minimum(1)
-                    .default_value(DEFAULT_FPS)
-                    .mutable_playing()
-                    .build(),
-                glib::ParamSpecUInt::builder("num-buffers")
-                    .minimum(0)
-                    .default_value(0)
-                    .maximum(u32::MAX)
-                    .mutable_playing()
-                    .build(),
-            ]
+            vec![glib::ParamSpecUInt::builder("num-buffers")
+                .minimum(0)
+                .default_value(0)
+                .maximum(u32::MAX)
+                .mutable_playing()
+                .build()]
         });
 
         PROPERTIES.as_ref()
@@ -120,18 +111,6 @@ impl ObjectImpl for QRTimeStampSrc {
 
     fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
         match pspec.name() {
-            "fps" => {
-                let mut settings = self.settings.lock().unwrap();
-                let fps = value.get().expect("type checked upstream");
-                gst::info!(
-                    CAT,
-                    imp: self,
-                    "Changing fps from {} to {}",
-                    settings.fps,
-                    fps
-                );
-                settings.fps = fps;
-            }
             "num-buffers" => {
                 let mut settings = self.settings.lock().unwrap();
                 let num_buffers = value.get().expect("type checked upstream");
@@ -150,10 +129,6 @@ impl ObjectImpl for QRTimeStampSrc {
 
     fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
-            "fps" => {
-                let settings = self.settings.lock().unwrap();
-                settings.fps.to_value()
-            }
             "num-buffers" => {
                 let settings = self.settings.lock().unwrap();
                 settings.num_buffers.to_value()
@@ -185,7 +160,7 @@ impl ElementImpl for QRTimeStampSrc {
                 .format_list([gst_video::VideoFormat::Rgb])
                 .height(200)
                 .width(200)
-                .framerate_range(gst::Fraction::from(1)..gst::Fraction::from(100))
+                .framerate_range(gst::Fraction::from(10)..gst::Fraction::from(240))
                 .build();
             // The src pad template must be named "src" for basesrc
             // and specific a pad that is always there
@@ -227,6 +202,8 @@ impl BaseSrcImpl for QRTimeStampSrc {
         })?;
 
         gst::debug!(CAT, imp: self, "Configuring for caps {}", caps);
+
+        self.settings.lock().unwrap().fps = gst_video::VideoInfo::from_caps(&caps).unwrap().fps();
 
         let mut state = self.state.lock().unwrap();
 
@@ -273,8 +250,9 @@ impl BaseSrcImpl for QRTimeStampSrc {
             QueryViewMut::Latency(_latency) => {
                 let state = self.state.lock().unwrap();
                 if let Some(ref _info) = state.info {
+                    let fps = self.settings.lock().unwrap().fps;
                     let latency = gst::ClockTime::SECOND
-                        .mul_div_floor(1 as u64, 30 as u64)
+                        .mul_div_floor(fps.denom() as u64, fps.numer() as u64)
                         .unwrap();
                     gst::info!(CAT, imp: self, "Returning latency {}", latency);
                     return true;
@@ -332,14 +310,12 @@ impl PushSrcImpl for QRTimeStampSrc {
         {
             let buffer = buffer.get_mut().unwrap();
 
-            let duration = (1)
-                .mul_div_floor(*gst::ClockTime::SECOND, settings.fps as u64)
-                .map(gst::ClockTime::from_nseconds)
+            let duration = (gst::ClockTime::SECOND)
+                .mul_div_floor(settings.fps.denom() as u64, settings.fps.numer() as u64)
                 .unwrap();
 
-            let pts = (state.sample_offset)
-                .mul_div_floor(*gst::ClockTime::SECOND, settings.fps as u64)
-                .map(gst::ClockTime::from_nseconds)
+            let pts = (state.sample_offset * gst::ClockTime::SECOND)
+                .mul_div_floor(settings.fps.denom() as u64, settings.fps.numer() as u64)
                 .unwrap();
 
             buffer.set_pts(pts);
