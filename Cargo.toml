@@ -12,6 +12,10 @@ name = "gstqrtimestamp"
 crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
+[[bin]]
+name = "tester"
+path = "src/app/main.rs"
+
 [build-dependencies]
 gst-plugin-version-helper = "0.8.1"
 
@@ -21,7 +25,18 @@ gst = { package = "gstreamer", version = "0.22", features = ["v1_22"] }
 gst-base = { package = "gstreamer-base", version = "0.22", features = ["v1_22"] }
 gst-video = { package = "gstreamer-video", version = "0.22", features = ["v1_22"] }
 
+## Plugins for gstreamer libraries
 image = "0.24"
 once_cell = "1.19.0"
 qrc = "0.0.5" # Encode
 rqrr = "0.6" # Decode, TODO: Use it to replace qrc
+
+## Libraries for egui app
+chrono = "0.4"
+eframe = { version = "0.27", features = ["persistence", "glow", "wgpu"] }
+egui = { version = "0.27", default-features = false }
+egui_extras = { version = "0.27", default-features = false }
+egui_glow = { version = "0.27", default-features = false }
+egui-wgpu = { version = "0.27", default-features = false }
+serde = "1"
+tokio = { version = "1", features = ["full"] }
