@@ -5,7 +5,7 @@ Simple helper to test pipelines where the qrcode content is the unix timestamp o
 To run:
 ```bash
 cargo build --release
-gst-launch-1.0 --gst-plugin-path=$PWD/target/release qrtimestampsrc ! fpsdisplaysink
+gst-launch-1.0 --gst-plugin-path=$PWD/target/release qrtimestampsrc ! videoconvert ! fpsdisplaysink
 ```
 
 If you want to decode and get the time difference, you can run:
