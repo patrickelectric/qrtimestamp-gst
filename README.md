@@ -16,5 +16,5 @@ gst-launch-1.0 --gst-plugin-path=$PWD/target/release/ qrtimestampsrc ! qrtimesta
 
 It's also possible to change framerate and resolution from caps:
 ```bash
-gst-launch-1.0 --gst-plugin-path=$PWD/target/release/ qrtimestampsrc ! video/x-raw,width=300,height=300,framerate=16/1 ! fpsdisplaysink
+gst-launch-1.0 --gst-plugin-path=$PWD/target/release/ qrtimestampsrc ! video/x-raw,width=300,height=300,framerate=16/1 ! videoconvert ! fpsdisplaysink
 ```
