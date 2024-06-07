@@ -19,13 +19,12 @@ impl Default for FrameHistory {
 }
 
 impl FrameHistory {
-    // Called first
     pub fn on_new_frame(&mut self, now: f64, previous_frame_time: Option<f32>) {
         let previous_frame_time = previous_frame_time.unwrap_or_default();
         if let Some(latest) = self.frame_times.latest_mut() {
             *latest = previous_frame_time; // rewrite history now that we know
         }
-        self.frame_times.add(now, previous_frame_time); // projected
+        self.frame_times.add(now, previous_frame_time);
     }
 
     pub fn mean_frame_time(&self) -> f32 {
@@ -34,6 +33,7 @@ impl FrameHistory {
 
     pub fn fps(&self) -> f32 {
         let mean_time_interval = self.frame_times.mean_time_interval().unwrap_or_default();
+        // Avoid division by zero
         if mean_time_interval < f32::EPSILON {
             return 0.0;
         }
@@ -76,7 +76,6 @@ impl FrameHistory {
 
         let history = &self.frame_times;
 
-        // TODO(emilk): we should not use `slider_width` as default graph width.
         let height = ui.spacing().slider_width;
         let size = vec2(ui.available_size_before_wrap().x, height);
         let (rect, response) = ui.allocate_at_least(size, Sense::hover());
@@ -120,7 +119,7 @@ impl FrameHistory {
 
         let circle_color = color;
         let radius = 2.0;
-        let right_side_time = ui.input(|i| i.time); // Time at right side of screen
+        let right_side_time = ui.input(|i| i.time);
 
         for (time, cpu_usage) in history.iter() {
             let age = (right_side_time - time) as f32;
