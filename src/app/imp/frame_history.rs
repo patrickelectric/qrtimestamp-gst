@@ -1,4 +1,5 @@
 use egui::util::History;
+use egui_plot::{Legend, Line, PlotPoints};
 
 pub struct FrameHistory {
     frame_times: History<f32>,
@@ -69,74 +70,25 @@ impl FrameHistory {
             });
     }
 
-    fn graph(&mut self, ui: &mut egui::Ui) -> egui::Response {
-        use egui::*;
-
-        ui.label("egui CPU usage history");
-
-        let history = &self.frame_times;
-
-        let height = ui.spacing().slider_width;
-        let size = vec2(ui.available_size_before_wrap().x, height);
-        let (rect, response) = ui.allocate_at_least(size, Sense::hover());
-        let style = ui.style().noninteractive();
-
-        let graph_top_cpu_usage = 0.010;
-        let graph_rect = Rect::from_x_y_ranges(history.max_age()..=0.0, graph_top_cpu_usage..=0.0);
-        let to_screen = emath::RectTransform::from_to(graph_rect, rect);
-
-        let mut shapes = Vec::with_capacity(3 + 2 * history.len());
-        shapes.push(Shape::Rect(epaint::RectShape::new(
-            rect,
-            style.rounding,
-            ui.visuals().extreme_bg_color,
-            ui.style().noninteractive().bg_stroke,
-        )));
-
-        let rect = rect.shrink(4.0);
-        let color = ui.visuals().text_color();
-        let line_stroke = Stroke::new(1.0, color);
-
-        if let Some(pointer_pos) = response.hover_pos() {
-            let y = pointer_pos.y;
-            shapes.push(Shape::line_segment(
-                [pos2(rect.left(), y), pos2(rect.right(), y)],
-                line_stroke,
-            ));
-            let cpu_usage = to_screen.inverse().transform_pos(pointer_pos).y;
-            let text = format!("{:.1} ms", 1e3 * cpu_usage);
-            shapes.push(ui.fonts(|f| {
-                Shape::text(
-                    f,
-                    pos2(rect.left(), y),
-                    egui::Align2::LEFT_BOTTOM,
-                    text,
-                    TextStyle::Monospace.resolve(ui.style()),
-                    color,
-                )
-            }));
-        }
-
-        let circle_color = color;
-        let radius = 2.0;
-        let right_side_time = ui.input(|i| i.time);
-
-        for (time, cpu_usage) in history.iter() {
-            let age = (right_side_time - time) as f32;
-            let pos = to_screen.transform_pos_clamped(Pos2::new(age, cpu_usage));
-
-            shapes.push(Shape::line_segment(
-                [pos2(pos.x, rect.bottom()), pos],
-                line_stroke,
-            ));
-
-            if cpu_usage < graph_top_cpu_usage {
-                shapes.push(Shape::circle_filled(pos, radius, circle_color));
-            }
-        }
-
-        ui.painter().extend(shapes);
-
-        response
+    fn graph(&mut self, ui: &mut egui::Ui) {
+        egui_plot::Plot::new("plot")
+            .set_margin_fraction(egui::Vec2::new(0.0, 0.0))
+            .y_axis_position(egui_plot::HPlacement::Right)
+            .allow_zoom(false)
+            .allow_drag(false)
+            .allow_scroll(false)
+            .legend(Legend::default())
+            .include_y(0)
+            .include_y(100)
+            .height(ui.spacing().slider_width * 3.0)
+            .show(ui, |plot_ui| {
+                let sine_points = PlotPoints::from(
+                    self.frame_times
+                        .iter()
+                        .map(|(time, cpu_usage)| [time, 1000.0 * cpu_usage as f64])
+                        .collect::<Vec<[f64; 2]>>(),
+                );
+                plot_ui.line(Line::new(sine_points).name("Render (ms)"));
+            });
     }
 }

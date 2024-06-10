@@ -35,6 +35,7 @@ rqrr = "0.6" # Decode, TODO: Use it to replace qrc
 chrono = "0.4"
 eframe = { version = "0.27", features = ["persistence", "glow", "wgpu"] }
 egui = { version = "0.27", default-features = false }
+egui_plot = { version = "0.27", default-features = false }
 egui_extras = { version = "0.27", default-features = false }
 egui_glow = { version = "0.27", default-features = false }
 egui-wgpu = { version = "0.27", default-features = false }
