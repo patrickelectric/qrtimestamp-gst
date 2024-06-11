@@ -3,35 +3,31 @@ use eframe::glow;
 use super::backend_panel::BackendPanel;
 // use super::menus;
 // use super::pages::color_test::ColorTest;
-// use super::tools::Tools;
+//use super::tools::Tools;
+use super::pages::video::Video;
 use egui::{Modifiers, Ui};
 
-#[derive(Default, serde::Deserialize, serde::Serialize)]
+#[derive(Default)]
 pub struct ColorTestApp {
     // color_test: ColorTest,
+    video: Video,
 }
 
 impl eframe::App for ColorTestApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            if frame.is_web() {
-                ui.label(
-                    "NOTE: Some old browsers stuck on WebGL1 without sRGB support will not pass the color test.",
-                );
-                ui.separator();
-            }
-            ui.push_id("Color Test", |ui| {
+            ui.push_id("Video Show", |ui| {
                 egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
-                    // self.color_test.ui(ui);
+                    self.video.show(ui);
                 });
             });
         });
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Anchor {
-    // Tools,
+    Tools,
     Colors,
 }
 
@@ -49,8 +45,8 @@ impl From<Anchor> for egui::WidgetText {
 
 impl Default for Anchor {
     fn default() -> Self {
-        // Self::Tools
-        Self::Colors
+        Self::Tools
+        // Self::Colors
     }
 }
 
@@ -62,8 +58,9 @@ enum Command {
 }
 
 /// The state that we persist (serialize).
-#[derive(Default, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
+// #[derive(Default, serde::Deserialize, serde::Serialize)]
+// #[serde(default)]
+#[derive(Default)]
 pub struct State {
     // tools: Tools,
     color_test: ColorTestApp,
@@ -86,11 +83,13 @@ impl WrapApp {
             state: State::default(),
         };
 
+        /*
         if let Some(storage) = cc.storage {
             if let Some(state) = eframe::get_value(storage, eframe::APP_KEY) {
                 slf.state = state;
             }
         }
+         */
 
         slf
     }
@@ -103,7 +102,7 @@ impl WrapApp {
                 Anchor::Tools,
                 &mut self.state.tools as &mut dyn eframe::App,
             ),
-            */
+             */
             (
                 "🎨 Color test",
                 Anchor::Colors,
@@ -116,9 +115,11 @@ impl WrapApp {
 }
 
 impl eframe::App for WrapApp {
+    /*
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, &self.state);
     }
+     */
 
     fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
         visuals.panel_fill.to_normalized_gamma_f32()

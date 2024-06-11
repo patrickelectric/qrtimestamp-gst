@@ -22,6 +22,7 @@ gst-plugin-version-helper = "0.8.1"
 [dependencies]
 glib = "0.19.2"
 gst = { package = "gstreamer", version = "0.22", features = ["v1_22"] }
+gst-app = { package = "gstreamer-app", version = "0.22", features = ["v1_22"] }
 gst-base = { package = "gstreamer-base", version = "0.22", features = ["v1_22"] }
 gst-video = { package = "gstreamer-video", version = "0.22", features = ["v1_22"] }
 
