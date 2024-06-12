@@ -234,10 +234,6 @@ impl WrapApp {
 
         ui.separator();
 
-        // menus::view(ui);
-
-        ui.separator();
-
         let mut selected_anchor = self.state.selected_anchor;
 
         for (name, anchor, _app) in self.apps_iter_mut() {
