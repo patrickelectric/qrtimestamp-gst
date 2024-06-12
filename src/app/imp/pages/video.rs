@@ -91,7 +91,7 @@ impl Video {
                 .ctx()
                 .load_texture("video_frame", image, egui::TextureOptions::LINEAR);
             let image = egui::Image::new(&texture)
-                .fit_to_exact_size(vec2(ui.available_size().x - 150.0, ui.available_size().y));
+                .fit_to_exact_size(vec2(ui.available_size().x, ui.available_size().y));
             let response = ui.add(image);
 
             let widget_rect = response.rect;
