@@ -27,8 +27,7 @@ impl eframe::App for ColorTestApp {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Anchor {
-    Tools,
-    Colors,
+    Video,
 }
 
 impl std::fmt::Display for Anchor {
@@ -45,8 +44,7 @@ impl From<Anchor> for egui::WidgetText {
 
 impl Default for Anchor {
     fn default() -> Self {
-        Self::Tools
-        // Self::Colors
+        Self::Video
     }
 }
 
@@ -98,7 +96,7 @@ impl WrapApp {
         let vec = vec![
             (
                 "🎥 Video",
-                Anchor::Colors,
+                Anchor::Video,
                 &mut self.state.color_test as &mut dyn eframe::App,
             ),
         ];
