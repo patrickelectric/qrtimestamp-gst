@@ -17,7 +17,6 @@ pub struct Video {
     rx: mpsc::Receiver<(gst::Sample, f64)>,
 
     image: Option<egui::ColorImage>,
-
     // frame_history: VideoFrameHistory,
 }
 

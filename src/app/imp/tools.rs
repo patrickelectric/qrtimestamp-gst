@@ -2,19 +2,11 @@ use std::collections::BTreeSet;
 
 use egui::{Context, ScrollArea, Ui};
 
-//use super::extra_viewport;
 use super::pages::video::Video;
-//use super::widgets::about::About;
-//use super::widgets::gst_elements_info::GstElementInfo;
-//use super::widgets::tools;
-//use super::widgets::Tool;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 struct InnerTools {
-    #[serde(skip)]
-    //tools: Vec<Vec<Box<dyn Tool>>>,
-
     open: BTreeSet<String>,
 }
 

@@ -1,16 +1,11 @@
 mod imp;
 
-/// Something to view in the demo windows
 pub trait View {
     fn ui(&mut self, ui: &mut egui::Ui);
 }
 
-// When compiling natively:
 fn main() -> Result<(), eframe::Error> {
-    dbg!("Starting..");
     gst::init().unwrap();
-    dbg!("Gst inited");
-
     {
         // Silence wgpu log spam (https://github.com/gfx-rs/wgpu/issues/3206)
         let mut rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_owned());

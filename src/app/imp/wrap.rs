@@ -1,15 +1,11 @@
 use eframe::glow;
 
 use super::backend_panel::BackendPanel;
-// use super::menus;
-// use super::pages::color_test::ColorTest;
-//use super::tools::Tools;
 use super::pages::video::Video;
 use egui::{Modifiers, Ui};
 
 #[derive(Default)]
 pub struct ColorTestApp {
-    // color_test: ColorTest,
     video: Video,
 }
 
@@ -55,9 +51,6 @@ enum Command {
     ResetEverything,
 }
 
-/// The state that we persist (serialize).
-// #[derive(Default, serde::Deserialize, serde::Serialize)]
-// #[serde(default)]
 #[derive(Default)]
 pub struct State {
     // tools: Tools,
@@ -81,37 +74,21 @@ impl WrapApp {
             state: State::default(),
         };
 
-        /*
-        if let Some(storage) = cc.storage {
-            if let Some(state) = eframe::get_value(storage, eframe::APP_KEY) {
-                slf.state = state;
-            }
-        }
-         */
-
         slf
     }
 
     fn apps_iter_mut(&mut self) -> impl Iterator<Item = (&str, Anchor, &mut dyn eframe::App)> {
-        let vec = vec![
-            (
-                "🎥 Video",
-                Anchor::Video,
-                &mut self.state.color_test as &mut dyn eframe::App,
-            ),
-        ];
+        let vec = vec![(
+            "🎥 Video",
+            Anchor::Video,
+            &mut self.state.color_test as &mut dyn eframe::App,
+        )];
 
         vec.into_iter()
     }
 }
 
 impl eframe::App for WrapApp {
-    /*
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, &self.state);
-    }
-     */
-
     fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
         visuals.panel_fill.to_normalized_gamma_f32()
     }
