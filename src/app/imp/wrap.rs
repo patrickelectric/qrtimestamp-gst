@@ -96,15 +96,8 @@ impl WrapApp {
 
     fn apps_iter_mut(&mut self) -> impl Iterator<Item = (&str, Anchor, &mut dyn eframe::App)> {
         let vec = vec![
-            /*
             (
                 "🎥 Video",
-                Anchor::Tools,
-                &mut self.state.tools as &mut dyn eframe::App,
-            ),
-             */
-            (
-                "🎨 Color test",
                 Anchor::Colors,
                 &mut self.state.color_test as &mut dyn eframe::App,
             ),
