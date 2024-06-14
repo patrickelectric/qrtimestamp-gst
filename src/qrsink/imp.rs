@@ -113,12 +113,15 @@ impl BaseSinkImpl for QRTimeStampSink {
             return Ok(gst::FlowSuccess::Ok);
         };
 
-        let image_buffer = image::ImageBuffer::<image::Rgb<u8>, Vec<u8>>::from_vec(
+        let Some(image_buffer) = image::ImageBuffer::<image::Rgb<u8>, Vec<u8>>::from_vec(
             frame.width(),
             frame.height(),
             data.to_vec(),
-        )
-        .unwrap();
+        ) else {
+            println!("Problem creating image buffer: {}x{} ({},)", frame.width(), frame.height(), data.len());
+            return Err(gst::FlowError::Error);
+        };
+
         let mut qrcode_image =
             rqrr::PreparedImage::prepare(image::DynamicImage::ImageRgb8(image_buffer).to_luma8());
         let grids = qrcode_image.detect_grids();
