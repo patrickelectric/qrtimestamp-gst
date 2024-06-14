@@ -13,6 +13,10 @@ impl eframe::App for ColorTestApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.push_id("Video Show", |ui| {
+                ui.add(egui::TextEdit::singleline(&mut current_filter).desired_width(120.0));
+                if ui.button("ｘ").clicked() {
+                    current_filter.clear();
+                }
                 egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
                     self.video.show(ui);
                 });

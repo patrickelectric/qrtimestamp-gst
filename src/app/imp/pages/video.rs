@@ -20,12 +20,9 @@ pub struct Video {
     // frame_history: VideoFrameHistory,
 }
 
-impl Default for Video {
-    fn default() -> Self {
-        // gst_color_subtract::register_color_subtract_plugin();
-
-        let pipeline_str = "videotestsrc pattern=ball is-live=true do-timestamp=true ! videoconvert ! video/x-raw,format=RGBA ! appsink name=sink emit-signals=true sync=false";
-        let pipeline = gst::parse::launch(pipeline_str).unwrap();
+impl Video {
+    fn new(pipeine: &str) -> Self {
+        let pipeline = gst::parse::launch(pipeine).unwrap();
 
         let pipeline = pipeline.dynamic_cast::<gst::Pipeline>().unwrap();
         let appsink = pipeline
@@ -54,7 +51,7 @@ impl Default for Video {
                             / 1000.0,
                     ))
                     .map_err(|_| gst::FlowError::Eos)
-                    .unwrap();
+                    .unwrap(); // Deal with this
                     Ok(gst::FlowSuccess::Ok)
                 })
                 .build(),
@@ -69,8 +66,18 @@ impl Default for Video {
     }
 }
 
+impl Default for Video {
+    fn default() -> Self {
+        let pipeline = "videotestsrc pattern=ball is-live=true do-timestamp=true ! videoconvert ! video/x-raw,format=RGBA ! appsink name=sink emit-signals=true sync=false";
+        Video::new(pipeline)
+    }
+}
+
 impl Video {
-    pub fn show(&mut self, ui: &mut egui::Ui) {
+    pub fn show(&mut self, ui: &mut egui::Ui, pipeline: Option<&str>) {
+        if let Some(pipeline) = pipeline {
+            *self = Video::new(pipeline);
+        }
         ui.add_space(20.0);
         if let Ok((image, time)) = self.rx.try_recv() {
             let buffer = image.buffer().expect("Failed to get buffer from sample");
