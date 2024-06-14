@@ -384,6 +384,68 @@ impl PushSrcImpl for QRTimeStampSrc {
             return Err(gst::FlowError::Eos);
         }
         drop(state);
+
+        // If we're live, we are waiting until the time of the last sample in our buffer has
+        // arrived. This is the very reason why we have to report that much latency.
+        // A real live-source would of course only allow us to have the data available after
+        // that latency, e.g. when capturing from a microphone, and no waiting from our side
+        // would be necessary..
+        //
+        // Waiting happens based on the pipeline clock, which means that a real live source
+        // with its own clock would require various translations between the two clocks.
+        // This is out of scope for the tutorial though.
+        {
+            let (clock, base_time) = match Option::zip(self.obj().clock(), self.obj().base_time()) {
+                None => return Ok(CreateSuccess::NewBuffer(buffer)),
+                Some(res) => res,
+            };
+
+            let segment = self
+                .obj()
+                .segment()
+                .downcast::<gst::format::Time>()
+                .unwrap();
+            let running_time = segment.to_running_time(buffer.pts().opt_add(buffer.duration()));
+
+            // The last sample's clock time is the base time of the element plus the
+            // running time of the last sample
+            let wait_until = match running_time.opt_add(base_time) {
+                Some(wait_until) => wait_until,
+                None => return Ok(CreateSuccess::NewBuffer(buffer)),
+            };
+
+            // Store the clock ID in our struct unless we're flushing anyway.
+            // This allows to asynchronously cancel the waiting from unlock()
+            // so that we immediately stop waiting on e.g. shutdown.
+            let mut clock_wait = self.clock_wait.lock().unwrap();
+            if clock_wait.flushing {
+                gst::debug!(CAT, imp: self, "Flushing");
+                return Err(gst::FlowError::Flushing);
+            }
+
+            let id = clock.new_single_shot_id(wait_until);
+            clock_wait.clock_id = Some(id.clone());
+            drop(clock_wait);
+
+            gst::log!(
+                CAT,
+                imp: self,
+                "Waiting until {}, now {}",
+                wait_until,
+                clock.time().display(),
+            );
+            let (res, jitter) = id.wait();
+            gst::log!(CAT, imp: self, "Waited res {:?} jitter {}", res, jitter);
+            self.clock_wait.lock().unwrap().clock_id.take();
+
+            // If the clock ID was unscheduled, unlock() was called
+            // and we should return Flushing immediately.
+            if res == Err(gst::ClockError::Unscheduled) {
+                gst::debug!(CAT, imp: self, "Flushing");
+                return Err(gst::FlowError::Flushing);
+            }
+        }
+
         Ok(CreateSuccess::NewBuffer(buffer))
     }
 }
