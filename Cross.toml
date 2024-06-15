@@ -1,12 +1,5 @@
-[build]
-pre-build = [
-    "dpkg --add-architecture $CROSS_DEB_ARCH",
-    "apt-get update",
-    """apt-get update && apt-get install --assume-yes --no-install-recommends
-        libssl-dev:$CROSS_DEB_ARCH
-        libglib2.0-dev:$CROSS_DEB_ARCH
-        libgstreamer1.0-dev:$CROSS_DEB_ARCH
-        libgstreamer-plugins-base1.0-dev:$CROSS_DEB_ARCH
-        libgstreamer-plugins-bad1.0-dev:$CROSS_DEB_ARCH
-        libgstrtspserver-1.0-dev:$CROSS_DEB_ARCH"""
-]
+[target.x86_64-unknown-linux-gnu]
+image = "patrickelectric/cross-rs:x86_64-unknown-linux-gnu-bookworm-slim-with-gstreamer"
+
+[target.armv7-unknown-linux-gnueabihf]
+image = "patrickelectric/cross-rs:armv7-unknown-linux-gnueabihf-bookworm-slim-with-gstreamer"
