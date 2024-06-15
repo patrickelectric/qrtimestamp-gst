@@ -98,6 +98,7 @@ impl BaseSinkImpl for QRTimeStampSink {
     }
 
     fn render(&self, buffer: &gst::Buffer) -> Result<gst::FlowSuccess, gst::FlowError> {
+        // dbg!("frame");
         let Some(info) = self.state.lock().unwrap().info.clone() else {
             return Ok(gst::FlowSuccess::Ok);
         };
@@ -113,14 +114,25 @@ impl BaseSinkImpl for QRTimeStampSink {
             return Ok(gst::FlowSuccess::Ok);
         };
 
+        // dbg!("data");
+
         let Some(image_buffer) = image::ImageBuffer::<image::Rgb<u8>, Vec<u8>>::from_vec(
             frame.width(),
             frame.height(),
             data.to_vec(),
         ) else {
-            println!("Problem creating image buffer: {}x{} ({},)", frame.width(), frame.height(), data.len());
+            println!(
+                "Problem creating image buffer: {}x{} ({},)",
+                frame.width(),
+                frame.height(),
+                data.len()
+            );
             return Err(gst::FlowError::Error);
         };
+
+        image_buffer.save("/tmp/image.png");
+
+        // dbg!("buffer");
 
         let mut qrcode_image =
             rqrr::PreparedImage::prepare(image::DynamicImage::ImageRgb8(image_buffer).to_luma8());
@@ -128,13 +140,15 @@ impl BaseSinkImpl for QRTimeStampSink {
         if grids.len() == 0 {
             return Ok(gst::FlowSuccess::Ok);
         }
-        let (_meta, content) = grids[0].decode().unwrap();
-        let content = content.parse::<u128>().unwrap();
-        let diff = if time.as_millis() > content {
-            time.as_millis() - content
-        } else {
-            0
+        let (_meta, content) = match grids[0].decode() {
+            Ok(result) => result,
+            Err(error) => {
+                println!("Error decoding QRCode: {}", error);
+                return Ok(gst::FlowSuccess::Ok);
+            }
         };
+        let content = content.parse::<u128>().unwrap();
+        let diff = time.as_millis() as i128 - content as i128;
         println!("Time difference: {diff} ms");
         Ok(gst::FlowSuccess::Ok)
     }

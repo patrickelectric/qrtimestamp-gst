@@ -29,7 +29,7 @@ impl Video {
                 pipeline: None,
                 rx,
                 image: None,
-            }
+            };
         };
 
         let pipeline = pipeline.dynamic_cast::<gst::Pipeline>().unwrap();
@@ -38,7 +38,7 @@ impl Video {
                 pipeline: None,
                 rx,
                 image: None,
-            }
+            };
         };
         let appsink = sink.dynamic_cast::<AppSink>().unwrap();
 

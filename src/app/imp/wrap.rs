@@ -15,15 +15,14 @@ impl eframe::App for ColorTestApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.push_id("Video Show", |ui| {
                 let mut current_filter = self.current_filter.clone();
-                ui.add(egui::TextEdit::singleline(&mut current_filter).desired_width(120.0));
-                egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
+                //ui.with_layout(egui::Layout::right_to_left(egui::Align::LEFT), |ui| {
+                    ui.add(egui::TextEdit::singleline(&mut current_filter).hint_text("Your gstreamer pipeline with an appsink in the end with RGBA format (! videoconvert ! video/x-raw,format=RGBA ! appsink name=sink)").desired_width(ui.available_size().x));
                     let mut pipeline = None;
                     if current_filter != self.current_filter {
                         self.current_filter = current_filter;
                         pipeline = Some(&self.current_filter);
                     }
                     self.video.show(ui, pipeline);
-                });
             });
         });
     }
