@@ -11,7 +11,7 @@ use egui::{vec2, Align2};
 //use crate::app::gst_elements::gst_color_subtract;
 
 pub struct Video {
-    pipeline: gst::Pipeline,
+    pipeline: Option<gst::Pipeline>,
 
     // change to signals
     rx: mpsc::Receiver<(gst::Sample, f64)>,
@@ -22,18 +22,27 @@ pub struct Video {
 
 impl Video {
     fn new(pipeine: &str) -> Self {
-        let pipeline = gst::parse::launch(pipeine).unwrap();
+        let (tx, rx) = mpsc::channel(1);
+
+        let Ok(pipeline) = gst::parse::launch(pipeine) else {
+            return Self {
+                pipeline: None,
+                rx,
+                image: None,
+            }
+        };
 
         let pipeline = pipeline.dynamic_cast::<gst::Pipeline>().unwrap();
-        let appsink = pipeline
-            .by_name("sink")
-            .unwrap()
-            .dynamic_cast::<AppSink>()
-            .unwrap();
+        let Some(sink) = pipeline.by_name("sink") else {
+            return Self {
+                pipeline: None,
+                rx,
+                image: None,
+            }
+        };
+        let appsink = sink.dynamic_cast::<AppSink>().unwrap();
 
-        pipeline.set_state(gst::State::Playing).unwrap();
-
-        let (tx, rx) = mpsc::channel(1);
+        pipeline.set_state(gst::State::Playing);
 
         let started = std::time::Instant::now();
         appsink.set_callbacks(
@@ -58,7 +67,7 @@ impl Video {
         );
 
         Self {
-            pipeline,
+            pipeline: Some(pipeline),
             rx,
             image: None,
             // frame_history: VideoFrameHistory::default(),
@@ -68,14 +77,18 @@ impl Video {
 
 impl Default for Video {
     fn default() -> Self {
-        let pipeline = "videotestsrc pattern=ball is-live=true do-timestamp=true ! videoconvert ! video/x-raw,format=RGBA ! appsink name=sink emit-signals=true sync=false";
+        // E,g: videotestsrc pattern=ball is-live=true do-timestamp=true ! videoconvert ! video/x-raw,format=RGBA ! appsink name=sink emit-signals=true sync=false
+        let pipeline = r#"udpsrc address=0.0.0.0 port=5600 close-socket=false auto-multicast=true caps="application/x-rtp, sampling=(string)RGB, width=(string)320, height=(string)320, payload=(int)96" ! rtpvrawdepay ! videoconvert ! video/x-raw,format=RGBA ! appsink name=sink"#;
         Video::new(pipeline)
     }
 }
 
 impl Video {
-    pub fn show(&mut self, ui: &mut egui::Ui, pipeline: Option<&str>) {
+    pub fn show(&mut self, ui: &mut egui::Ui, pipeline: Option<&String>) {
         if let Some(pipeline) = pipeline {
+            if let Some(pipeline) = self.pipeline.take() {
+                pipeline.set_state(gst::State::Null).unwrap();
+            }
             *self = Video::new(pipeline);
         }
         ui.add_space(20.0);
