@@ -118,7 +118,12 @@ impl BaseSinkImpl for QRTimeStampSink {
             frame.height(),
             data.to_vec(),
         ) else {
-            println!("Problem creating image buffer: {}x{} ({},)", frame.width(), frame.height(), data.len());
+            println!(
+                "Problem creating image buffer: {}x{} ({},)",
+                frame.width(),
+                frame.height(),
+                data.len()
+            );
             return Err(gst::FlowError::Error);
         };
 
