@@ -30,8 +30,8 @@ const DEFAULT_SIZE: usize = 40;
 #[derive(Debug, Clone, Copy)]
 struct Settings {
     fps: gst::Fraction,
-    width: usize,
-    height: usize,
+    width: u32,
+    height: u32,
     num_buffers: i32,
     time_frame_creation: u128,
     time_previous_iteration: u128,
@@ -156,9 +156,9 @@ impl ElementImpl for QRTimeStampSrc {
         static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
             let caps = gst_video::VideoCapsBuilder::default()
                 .format_list([gst_video::VideoFormat::Rgb])
-                .height_range(100..i32::MAX)
-                .width_range(100..i32::MAX)
-                .framerate_range(gst::Fraction::from(10)..gst::Fraction::from(240))
+                .height_range(MINIMUM_SIZE as i32..i32::MAX)
+                .width_range(MINIMUM_SIZE as i32..i32::MAX)
+                .framerate_range(gst::Fraction::from(MINIMUM_FPS)..gst::Fraction::from(MAXIMUM_FPS))
                 .build();
             // The src pad template must be named "src" for basesrc
             // and specific a pad that is always there
@@ -323,7 +323,8 @@ impl PushSrcImpl for QRTimeStampSrc {
             gst::element_imp_error!(self, gst::CoreError::Negotiation, ["Have no caps yet"]);
             return Err(gst::FlowError::NotNegotiated);
         };
-        let mut buffer = gst::Buffer::with_size(settings.width * settings.height * 3).unwrap();
+        let mut buffer =
+            gst::Buffer::with_size((settings.width * settings.height * 3) as usize).unwrap();
         {
             let buffer = buffer.get_mut().unwrap();
 
@@ -355,7 +356,7 @@ impl PushSrcImpl for QRTimeStampSrc {
                 // RGBA to RGB transformation
                 for (output, chunk) in data
                     .chunks_exact_mut(3)
-                    .zip(qr.to_png(settings.width as u32).as_raw().chunks_exact(4))
+                    .zip(qr.to_png(settings.width).as_raw().chunks_exact(4))
                 {
                     output.copy_from_slice(&chunk[0..3]);
                 }
