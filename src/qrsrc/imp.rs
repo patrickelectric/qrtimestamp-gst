@@ -28,7 +28,7 @@ struct Settings {
     fps: gst::Fraction,
     width: usize,
     height: usize,
-    num_buffers: u32,
+    num_buffers: i32,
     time_frame_creation: u128,
     time_previous_iteration: u128,
 }
@@ -39,7 +39,7 @@ impl Default for Settings {
             fps: gst::Fraction::from((1, DEFAULT_FPS)),
             width: DEFAULT_SIZE,
             height: DEFAULT_SIZE,
-            num_buffers: u32::MAX,
+            num_buffers: -1,
             time_frame_creation: 0,
             time_previous_iteration: 0,
         }
@@ -83,11 +83,12 @@ impl ObjectSubclass for QRTimeStampSrc {
 impl ObjectImpl for QRTimeStampSrc {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-            vec![glib::ParamSpecUInt::builder("num-buffers")
-                .minimum(0)
-                .default_value(0)
-                .maximum(u32::MAX)
-                .mutable_playing()
+            vec![glib::ParamSpecInt::builder("num-buffers")
+                .nick("Num Buffers")
+                .blurb("Number of buffers to output before sending EOS (-1 = unlimited)")
+                .minimum(-1)
+                .default_value(-1)
+                .maximum(i32::MAX)
                 .build()]
         });
 
