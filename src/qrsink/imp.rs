@@ -57,7 +57,14 @@ impl ElementImpl for QRTimeStampSink {
 
     fn pad_templates() -> &'static [gst::PadTemplate] {
         static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
-            let caps = gst::Caps::new_any();
+            let caps = gst_video::VideoCapsBuilder::default()
+                .format_list([gst_video::VideoFormat::Rgb])
+                .height_range(MINIMUM_SIZE as i32..i32::MAX)
+                .width_range(MINIMUM_SIZE as i32..i32::MAX)
+                .framerate_range(gst::Fraction::from(MINIMUM_FPS)..gst::Fraction::from(MAXIMUM_FPS))
+                .build();
+            // The src pad template must be named "src" for basesrc
+            // and specific a pad that is always there
             let sink_pad_template = gst::PadTemplate::new(
                 "sink",
                 gst::PadDirection::Sink,
