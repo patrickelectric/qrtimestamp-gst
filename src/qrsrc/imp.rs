@@ -260,6 +260,8 @@ impl BaseSrcImpl for QRTimeStampSrc {
                     gst::info!(CAT, imp: self, "Returning latency {}", latency);
                     return true;
                 }
+
+                #[allow(clippy::needless_return)]
                 return false;
             }
             _ => BaseSrcImplExt::parent_query(self, query),
