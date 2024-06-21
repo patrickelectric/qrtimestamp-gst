@@ -5,7 +5,6 @@ use gst_video::{VideoFrameExt, VideoFrameRef};
 
 use std::sync::Mutex;
 
-use image;
 use once_cell::sync::Lazy;
 
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
