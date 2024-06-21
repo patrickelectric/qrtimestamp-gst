@@ -125,7 +125,7 @@ impl BaseSinkImpl for QRTimeStampSink {
         let mut qrcode_image =
             rqrr::PreparedImage::prepare(image::DynamicImage::ImageRgb8(image_buffer).to_luma8());
         let grids = qrcode_image.detect_grids();
-        if grids.len() == 0 {
+        if grids.is_empty() {
             return Ok(gst::FlowSuccess::Ok);
         }
         let (_meta, content) = grids[0].decode().unwrap();
