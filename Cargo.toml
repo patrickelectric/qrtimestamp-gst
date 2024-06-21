@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
 [build-dependencies]
-gst-plugin-version-helper = "0.8.1"
+gst-plugin-version-helper = "0.8.2"
 
 [dependencies]
 glib = "0.19.2"
