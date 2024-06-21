@@ -25,7 +25,7 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
 });
 
 const DEFAULT_FPS: i32 = 30;
-const DEFAULT_SIZE: usize = 40;
+const DEFAULT_SIZE: u32 = MINIMUM_SIZE;
 
 #[derive(Debug, Clone, Copy)]
 struct Settings {
