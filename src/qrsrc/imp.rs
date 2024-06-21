@@ -46,18 +46,10 @@ impl Default for Settings {
     }
 }
 
+#[derive(Default)]
 struct State {
     info: Option<gst_video::VideoInfo>,
     sample_offset: u64,
-}
-
-impl Default for State {
-    fn default() -> State {
-        State {
-            info: None,
-            sample_offset: 0,
-        }
-    }
 }
 
 struct ClockWait {
@@ -74,20 +66,11 @@ impl Default for ClockWait {
     }
 }
 
+#[derive(Default)]
 pub struct QRTimeStampSrc {
     settings: Mutex<Settings>,
     state: Mutex<State>,
     clock_wait: Mutex<ClockWait>,
-}
-
-impl Default for QRTimeStampSrc {
-    fn default() -> Self {
-        Self {
-            settings: Default::default(),
-            state: Default::default(),
-            clock_wait: Default::default(),
-        }
-    }
 }
 
 #[glib::object_subclass]

@@ -16,26 +16,14 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     )
 });
 
+#[derive(Default)]
 struct State {
     info: Option<gst_video::VideoInfo>,
 }
 
-impl Default for State {
-    fn default() -> State {
-        State { info: None }
-    }
-}
-
+#[derive(Default)]
 pub struct QRTimeStampSink {
     state: Mutex<State>,
-}
-
-impl Default for QRTimeStampSink {
-    fn default() -> Self {
-        Self {
-            state: Default::default(),
-        }
-    }
 }
 
 #[glib::object_subclass]
