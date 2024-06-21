@@ -196,9 +196,9 @@ impl BaseSrcImpl for QRTimeStampSrc {
 
         gst::debug!(CAT, imp: self, "Configuring for caps {}", caps);
 
-        self.settings.lock().unwrap().fps = gst_video::VideoInfo::from_caps(&caps).unwrap().fps();
-        let width = gst_video::VideoInfo::from_caps(&caps).unwrap().width() as usize;
-        let height = gst_video::VideoInfo::from_caps(&caps).unwrap().height() as usize;
+        self.settings.lock().unwrap().fps = gst_video::VideoInfo::from_caps(caps).unwrap().fps();
+        let width = gst_video::VideoInfo::from_caps(caps).unwrap().width();
+        let height = gst_video::VideoInfo::from_caps(caps).unwrap().height();
         if width != height {
             return Err(gst::LoggableError::new(
                 *CAT,
