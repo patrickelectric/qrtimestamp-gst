@@ -14,7 +14,7 @@ use qrc::QRCode;
 
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
-        "qrcodelinuxtimestamp",
+        "qrtimestampsrc",
         gst::DebugColorFlags::empty(),
         Some("Generate qrcodes based on current linux timestamp"),
     )
