@@ -45,9 +45,9 @@ impl ElementImpl for QRTimeStampSink {
     fn metadata() -> Option<&'static gst::subclass::ElementMetadata> {
         static ELEMENT_METADATA: Lazy<gst::subclass::ElementMetadata> = Lazy::new(|| {
             gst::subclass::ElementMetadata::new(
-                "QRCode Timestamp Source",
-                "Source/Video",
-                "Creates a QRCode based on the current linux timestamp",
+                "QRCode Timestamp Sink",
+                "Sink/Video",
+                "The sink pair of qrtimestampsrc",
                 "Patrick José Pereira <patrickelectric@gmail.com>",
             )
         });
