@@ -1,4 +1,5 @@
 use gst::glib;
+use gst::prelude::*;
 use gst::subclass::prelude::*;
 use gst_base::subclass::prelude::*;
 use gst_video::{VideoFrameExt, VideoFrameRef};
@@ -39,6 +40,16 @@ impl ObjectSubclass for QRTimeStampSink {
 impl ObjectImpl for QRTimeStampSink {
     fn constructed(&self) {
         self.parent_constructed();
+    }
+
+    fn signals() -> &'static [glib::subclass::Signal] {
+        static SIGNALS: Lazy<Vec<glib::subclass::Signal>> = Lazy::new(|| {
+            vec![glib::subclass::Signal::builder("on-render")
+                .param_types([gst_video::VideoInfo::static_type(), i64::static_type()])
+                .build()]
+        });
+
+        SIGNALS.as_ref()
     }
 }
 
@@ -135,10 +146,16 @@ impl BaseSinkImpl for QRTimeStampSink {
         let (_meta, content) = grids[0].decode().unwrap();
         let content = content.parse::<u128>().unwrap();
         let diff = if time.as_millis() > content {
-            time.as_millis() - content
+            (time.as_millis() - content) as i64
         } else {
             0
         };
+
+        if let Some(info) = &self.state.lock().unwrap().info {
+            let obj = self.obj();
+            obj.emit_by_name::<()>("on-render", &[&info, &diff]);
+        }
+
         gst::debug!(
             CAT,
             imp: self,
