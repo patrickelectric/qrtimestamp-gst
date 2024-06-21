@@ -16,7 +16,7 @@ path = "src/lib.rs"
 gst-plugin-version-helper = "0.8.2"
 
 [dependencies]
-glib = "0.19.2"
+glib = "0.19"
 gst = { package = "gstreamer", version = "0.22", features = ["v1_16"] }
 gst-base = { package = "gstreamer-base", version = "0.22", features = ["v1_16"] }
 gst-video = { package = "gstreamer-video", version = "0.22", features = ["v1_16"] }
