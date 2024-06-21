@@ -10,7 +10,7 @@ use once_cell::sync::Lazy;
 
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
-        "qrcodelinuxtimestamp",
+        "qrtimestampsink",
         gst::DebugColorFlags::empty(),
         Some("Reads qrcodes based on current linux timestamp"),
     )
