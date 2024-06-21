@@ -134,6 +134,16 @@ impl ObjectImpl for QRTimeStampSrc {
             _ => unimplemented!(),
         }
     }
+
+    fn signals() -> &'static [glib::subclass::Signal] {
+        static SIGNALS: Lazy<Vec<glib::subclass::Signal>> = Lazy::new(|| {
+            vec![glib::subclass::Signal::builder("on-create")
+                .param_types([gst_video::VideoInfo::static_type()])
+                .build()]
+        });
+
+        SIGNALS.as_ref()
+    }
 }
 
 impl GstObjectImpl for QRTimeStampSrc {}
@@ -436,6 +446,11 @@ impl PushSrcImpl for QRTimeStampSrc {
                 gst::debug!(CAT, imp: self, "Flushing");
                 return Err(gst::FlowError::Flushing);
             }
+        }
+
+        if let Some(info) = &self.state.lock().unwrap().info {
+            let obj = self.obj();
+            obj.emit_by_name::<()>("on-create", &[&info]);
         }
 
         Ok(CreateSuccess::NewBuffer(buffer))
