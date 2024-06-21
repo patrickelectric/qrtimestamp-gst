@@ -113,8 +113,9 @@ impl BaseSinkImpl for QRTimeStampSink {
             frame.height(),
             data.to_vec(),
         ) else {
-            println!(
-                "Problem creating image buffer: {}x{} ({},)",
+            gst::error!(
+                CAT,
+                "Problem creating image buffer: {}x{} ({})",
                 frame.width(),
                 frame.height(),
                 data.len()
@@ -135,7 +136,12 @@ impl BaseSinkImpl for QRTimeStampSink {
         } else {
             0
         };
-        println!("Time difference: {diff} ms");
+        gst::debug!(
+            CAT,
+            imp: self,
+            "Time difference: {diff} ms",
+        );
+
         Ok(gst::FlowSuccess::Ok)
     }
 }
