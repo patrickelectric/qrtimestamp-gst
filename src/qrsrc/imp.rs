@@ -12,6 +12,10 @@ use std::u32;
 use once_cell::sync::Lazy;
 use qrc::QRCode;
 
+use crate::MAXIMUM_FPS;
+use crate::MINIMUM_FPS;
+use crate::MINIMUM_SIZE;
+
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
         "qrtimestampsrc",

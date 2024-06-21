@@ -7,6 +7,10 @@ use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
 
+use crate::MAXIMUM_FPS;
+use crate::MINIMUM_FPS;
+use crate::MINIMUM_SIZE;
+
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
         "qrtimestampsink",

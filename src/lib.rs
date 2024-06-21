@@ -5,6 +5,10 @@ use gst::glib;
 mod qrsink;
 mod qrsrc;
 
+pub const MINIMUM_SIZE: u32 = 100;
+pub const MINIMUM_FPS: i32 = 10;
+pub const MAXIMUM_FPS: i32 = 240;
+
 fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
     qrsink::register(plugin)?;
     qrsrc::register(plugin)?;
