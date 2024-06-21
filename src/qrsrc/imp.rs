@@ -372,6 +372,7 @@ impl PushSrcImpl for QRTimeStampSrc {
 
         state.sample_offset += 1;
         if state.sample_offset > settings.num_buffers as u64 {
+            gst::debug!(CAT, imp: self, "EOS after iterations as requested.");
             return Err(gst::FlowError::Eos);
         }
         drop(state);
