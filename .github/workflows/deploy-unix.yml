@@ -50,6 +50,12 @@ jobs:
     - name: Building for ${{ matrix.os }} ${{ matrix.target }} (${{ matrix.SUFFIX }})
       run: cross build --release --locked --target ${{matrix.target}} --verbose
 
+    - uses: actions/upload-artifact@v4
+      with:
+        name: libgstqrtimestamp-${{ matrix.SUFFIX }}
+        path: target/${{ matrix.TARGET }}/release/*
+        compression-level: 9
+
     - name: Prepare files
       run: |
         UPLOAD_DIR=$PWD/upload
@@ -58,11 +64,6 @@ jobs:
         TARGETDIR="target/${{ matrix.TARGET }}/release/"
         cd $TARGETDIR
         tar -cvf $UPLOAD_DIR/libgstqrtimestamp.so.tar libgstqrtimestamp.so
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: libgstqrtimestamp-${{ matrix.SUFFIX }}.so.tar
-        path: upload/*
 
     - uses: svenstaro/upload-release-action@v2
       name: Upload binaries to release
