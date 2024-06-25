@@ -13,7 +13,7 @@ fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
 
 gst::plugin_define!(
     qrtimestamp, // This name should be the lib name in Cargo.toml without the gst prefix
-    "QRTimeStamp end-to-end test plugin\0",
+    env!("CARGO_PKG_DESCRIPTION"),
     plugin_init,
     concat!(env!("CARGO_PKG_VERSION"), "-", env!("COMMIT_ID")),
     "MIT/X11",
