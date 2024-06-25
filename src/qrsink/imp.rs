@@ -75,7 +75,9 @@ impl ElementImpl for QRTimeStampSink {
                 .format_list([gst_video::VideoFormat::Rgb])
                 .height_range(MINIMUM_SIZE as i32..i32::MAX)
                 .width_range(MINIMUM_SIZE as i32..i32::MAX)
-                .framerate_range(gst::Fraction::from(MINIMUM_FPS)..gst::Fraction::from(MAXIMUM_FPS))
+                .framerate_range(
+                    gst::Fraction::from(MINIMUM_FPS)..=gst::Fraction::from(MAXIMUM_FPS),
+                )
                 .build();
             // The src pad template must be named "src" for basesrc
             // and specific a pad that is always there
