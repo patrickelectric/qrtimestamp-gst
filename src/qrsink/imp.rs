@@ -101,14 +101,12 @@ impl BaseSinkImpl for QRTimeStampSink {
             gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {caps}")
         })?;
 
-        self.state.lock().unwrap().info = info.ok();
+        self.state.lock().unwrap().info.replace(info);
+
         Ok(())
     }
 
     fn render(&self, buffer: &gst::Buffer) -> Result<gst::FlowSuccess, gst::FlowError> {
-        let Some(info) = self.state.lock().unwrap().info.clone() else {
-            return Ok(gst::FlowSuccess::Ok);
-        };
         // We need to get time asap to avoid adding the time to the decode logic
         let time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
