@@ -7,28 +7,31 @@ use gst_base::subclass::base_src::CreateSuccess;
 use gst_base::subclass::prelude::*;
 
 use std::sync::Mutex;
-use std::u32;
 
 use once_cell::sync::Lazy;
 use qrc::QRCode;
 
+use crate::MAXIMUM_FPS;
+use crate::MINIMUM_FPS;
+use crate::MINIMUM_SIZE;
+
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
-        "qrcodelinuxtimestamp",
+        "qrtimestampsrc",
         gst::DebugColorFlags::empty(),
         Some("Generate qrcodes based on current linux timestamp"),
     )
 });
 
 const DEFAULT_FPS: i32 = 30;
-const DEFAULT_SIZE: usize = 40;
+const DEFAULT_SIZE: u32 = MINIMUM_SIZE;
 
 #[derive(Debug, Clone, Copy)]
 struct Settings {
     fps: gst::Fraction,
-    width: usize,
-    height: usize,
-    num_buffers: u32,
+    width: u32,
+    height: u32,
+    num_buffers: i32,
     time_frame_creation: u128,
     time_previous_iteration: u128,
 }
@@ -36,28 +39,20 @@ struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            fps: gst::Fraction::from((1, DEFAULT_FPS)),
+            fps: gst::Fraction::from((DEFAULT_FPS, 1)),
             width: DEFAULT_SIZE,
             height: DEFAULT_SIZE,
-            num_buffers: u32::MAX,
+            num_buffers: -1,
             time_frame_creation: 0,
             time_previous_iteration: 0,
         }
     }
 }
 
+#[derive(Default)]
 struct State {
     info: Option<gst_video::VideoInfo>,
     sample_offset: u64,
-}
-
-impl Default for State {
-    fn default() -> State {
-        State {
-            info: None,
-            sample_offset: 0,
-        }
-    }
 }
 
 struct ClockWait {
@@ -74,20 +69,11 @@ impl Default for ClockWait {
     }
 }
 
+#[derive(Default)]
 pub struct QRTimeStampSrc {
     settings: Mutex<Settings>,
     state: Mutex<State>,
     clock_wait: Mutex<ClockWait>,
-}
-
-impl Default for QRTimeStampSrc {
-    fn default() -> Self {
-        Self {
-            settings: Default::default(),
-            state: Default::default(),
-            clock_wait: Default::default(),
-        }
-    }
 }
 
 #[glib::object_subclass]
@@ -100,11 +86,12 @@ impl ObjectSubclass for QRTimeStampSrc {
 impl ObjectImpl for QRTimeStampSrc {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-            vec![glib::ParamSpecUInt::builder("num-buffers")
-                .minimum(0)
-                .default_value(0)
-                .maximum(u32::MAX)
-                .mutable_playing()
+            vec![glib::ParamSpecInt::builder("num-buffers")
+                .nick("Num Buffers")
+                .blurb("Number of buffers to output before sending EOS (-1 = unlimited)")
+                .minimum(-1)
+                .default_value(-1)
+                .maximum(i32::MAX)
                 .build()]
         });
 
@@ -168,9 +155,9 @@ impl ElementImpl for QRTimeStampSrc {
         static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
             let caps = gst_video::VideoCapsBuilder::default()
                 .format_list([gst_video::VideoFormat::Rgb])
-                .height_range(100..i32::MAX)
-                .width_range(100..i32::MAX)
-                .framerate_range(gst::Fraction::from(10)..gst::Fraction::from(240))
+                .height_range(MINIMUM_SIZE as i32..i32::MAX)
+                .width_range(MINIMUM_SIZE as i32..i32::MAX)
+                .framerate_range(gst::Fraction::from(MINIMUM_FPS)..gst::Fraction::from(MAXIMUM_FPS))
                 .build();
             // The src pad template must be named "src" for basesrc
             // and specific a pad that is always there
@@ -208,14 +195,14 @@ impl BaseSrcImpl for QRTimeStampSrc {
     // Called whenever the input/output caps are changing
     fn set_caps(&self, caps: &gst::Caps) -> Result<(), gst::LoggableError> {
         let info = gst_video::VideoInfo::from_caps(caps).map_err(|_| {
-            gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {}", caps)
+            gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {caps}")
         })?;
 
-        gst::debug!(CAT, imp: self, "Configuring for caps {}", caps);
+        gst::debug!(CAT, imp: self, "Configuring for caps {caps}");
 
-        self.settings.lock().unwrap().fps = gst_video::VideoInfo::from_caps(&caps).unwrap().fps();
-        let width = gst_video::VideoInfo::from_caps(&caps).unwrap().width() as usize;
-        let height = gst_video::VideoInfo::from_caps(&caps).unwrap().height() as usize;
+        self.settings.lock().unwrap().fps = gst_video::VideoInfo::from_caps(caps).unwrap().fps();
+        let width = gst_video::VideoInfo::from_caps(caps).unwrap().width();
+        let height = gst_video::VideoInfo::from_caps(caps).unwrap().height();
         if width != height {
             return Err(gst::LoggableError::new(
                 *CAT,
@@ -277,6 +264,8 @@ impl BaseSrcImpl for QRTimeStampSrc {
                     gst::info!(CAT, imp: self, "Returning latency {}", latency);
                     return true;
                 }
+
+                #[allow(clippy::needless_return)]
                 return false;
             }
             _ => BaseSrcImplExt::parent_query(self, query),
@@ -333,7 +322,8 @@ impl PushSrcImpl for QRTimeStampSrc {
             gst::element_imp_error!(self, gst::CoreError::Negotiation, ["Have no caps yet"]);
             return Err(gst::FlowError::NotNegotiated);
         };
-        let mut buffer = gst::Buffer::with_size(settings.width * settings.height * 3).unwrap();
+        let mut buffer =
+            gst::Buffer::with_size((settings.width * settings.height * 3) as usize).unwrap();
         {
             let buffer = buffer.get_mut().unwrap();
 
@@ -365,7 +355,7 @@ impl PushSrcImpl for QRTimeStampSrc {
                 // RGBA to RGB transformation
                 for (output, chunk) in data
                     .chunks_exact_mut(3)
-                    .zip(qr.to_png(settings.width as u32).as_raw().chunks_exact(4))
+                    .zip(qr.to_png(settings.width).as_raw().chunks_exact(4))
                 {
                     output.copy_from_slice(&chunk[0..3]);
                 }
@@ -381,6 +371,7 @@ impl PushSrcImpl for QRTimeStampSrc {
 
         state.sample_offset += 1;
         if state.sample_offset > settings.num_buffers as u64 {
+            gst::debug!(CAT, imp: self, "EOS after iterations as requested.");
             return Err(gst::FlowError::Eos);
         }
         drop(state);

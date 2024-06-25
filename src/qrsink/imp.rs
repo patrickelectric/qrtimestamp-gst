@@ -5,37 +5,28 @@ use gst_video::{VideoFrameExt, VideoFrameRef};
 
 use std::sync::Mutex;
 
-use image;
 use once_cell::sync::Lazy;
+
+use crate::MAXIMUM_FPS;
+use crate::MINIMUM_FPS;
+use crate::MINIMUM_SIZE;
 
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
-        "qrcodelinuxtimestamp",
+        "qrtimestampsink",
         gst::DebugColorFlags::empty(),
         Some("Reads qrcodes based on current linux timestamp"),
     )
 });
 
+#[derive(Default)]
 struct State {
     info: Option<gst_video::VideoInfo>,
 }
 
-impl Default for State {
-    fn default() -> State {
-        State { info: None }
-    }
-}
-
+#[derive(Default)]
 pub struct QRTimeStampSink {
     state: Mutex<State>,
-}
-
-impl Default for QRTimeStampSink {
-    fn default() -> Self {
-        Self {
-            state: Default::default(),
-        }
-    }
 }
 
 #[glib::object_subclass]
@@ -57,9 +48,9 @@ impl ElementImpl for QRTimeStampSink {
     fn metadata() -> Option<&'static gst::subclass::ElementMetadata> {
         static ELEMENT_METADATA: Lazy<gst::subclass::ElementMetadata> = Lazy::new(|| {
             gst::subclass::ElementMetadata::new(
-                "QRCode Timestamp Source",
-                "Source/Video",
-                "Creates a QRCode based on the current linux timestamp",
+                "QRCode Timestamp Sink",
+                "Sink/Video",
+                "The sink pair of qrtimestampsrc",
                 "Patrick José Pereira <patrickelectric@gmail.com>",
             )
         });
@@ -69,7 +60,14 @@ impl ElementImpl for QRTimeStampSink {
 
     fn pad_templates() -> &'static [gst::PadTemplate] {
         static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
-            let caps = gst::Caps::new_any();
+            let caps = gst_video::VideoCapsBuilder::default()
+                .format_list([gst_video::VideoFormat::Rgb])
+                .height_range(MINIMUM_SIZE as i32..i32::MAX)
+                .width_range(MINIMUM_SIZE as i32..i32::MAX)
+                .framerate_range(gst::Fraction::from(MINIMUM_FPS)..gst::Fraction::from(MAXIMUM_FPS))
+                .build();
+            // The src pad template must be named "src" for basesrc
+            // and specific a pad that is always there
             let sink_pad_template = gst::PadTemplate::new(
                 "sink",
                 gst::PadDirection::Sink,
@@ -90,9 +88,8 @@ impl BaseSinkImpl for QRTimeStampSink {
         // Here you would parse the caps to ensure they are what you expect
         gst::info!(CAT, "Caps set: {caps}");
 
-        let info = gst_video::VideoInfo::from_caps(caps).map_err(|_| {
-            gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {}", caps)
-        });
+        let info = gst_video::VideoInfo::from_caps(caps)
+            .map_err(|_| gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {caps}"));
         self.state.lock().unwrap().info = info.ok();
         Ok(())
     }
@@ -118,8 +115,9 @@ impl BaseSinkImpl for QRTimeStampSink {
             frame.height(),
             data.to_vec(),
         ) else {
-            println!(
-                "Problem creating image buffer: {}x{} ({},)",
+            gst::error!(
+                CAT,
+                "Problem creating image buffer: {}x{} ({})",
                 frame.width(),
                 frame.height(),
                 data.len()
@@ -130,7 +128,7 @@ impl BaseSinkImpl for QRTimeStampSink {
         let mut qrcode_image =
             rqrr::PreparedImage::prepare(image::DynamicImage::ImageRgb8(image_buffer).to_luma8());
         let grids = qrcode_image.detect_grids();
-        if grids.len() == 0 {
+        if grids.is_empty() {
             return Ok(gst::FlowSuccess::Ok);
         }
         let (_meta, content) = grids[0].decode().unwrap();
@@ -140,7 +138,12 @@ impl BaseSinkImpl for QRTimeStampSink {
         } else {
             0
         };
-        println!("Time difference: {diff} ms");
+        gst::debug!(
+            CAT,
+            imp: self,
+            "Time difference: {diff} ms",
+        );
+
         Ok(gst::FlowSuccess::Ok)
     }
 }
