@@ -38,10 +38,6 @@ impl ObjectSubclass for QRTimeStampSink {
 }
 
 impl ObjectImpl for QRTimeStampSink {
-    fn constructed(&self) {
-        self.parent_constructed();
-    }
-
     fn signals() -> &'static [glib::subclass::Signal] {
         static SIGNALS: Lazy<Vec<glib::subclass::Signal>> = Lazy::new(|| {
             vec![glib::subclass::Signal::builder("on-render")
