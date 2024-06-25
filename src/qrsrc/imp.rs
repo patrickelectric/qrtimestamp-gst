@@ -39,7 +39,7 @@ struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            fps: gst::Fraction::from((DEFAULT_FPS, 1)),
+            fps: gst::Fraction::from(DEFAULT_FPS),
             width: DEFAULT_SIZE,
             height: DEFAULT_SIZE,
             num_buffers: -1,
