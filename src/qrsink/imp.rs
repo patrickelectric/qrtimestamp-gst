@@ -138,20 +138,24 @@ impl BaseSinkImpl for QRTimeStampSink {
         // We need to get time asap to avoid adding the time to the decode logic
         let time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .as_millis() as u64;
 
-        let frame = VideoFrameRef::from_buffer_ref_readable(buffer, &info)
+        let state = self.state.lock().unwrap();
+
+        let Some(info) = &state.info else {
+            return Ok(gst::FlowSuccess::Ok);
+        };
+
+        let frame = VideoFrameRef::from_buffer_ref_readable(buffer, info)
             .map_err(|_| gst::FlowError::Error)?;
 
         let Ok(data) = frame.plane_data(0) else {
             return Ok(gst::FlowSuccess::Ok);
         };
 
-        let Some(image_buffer) = image::ImageBuffer::<image::Rgb<u8>, Vec<u8>>::from_vec(
-            frame.width(),
-            frame.height(),
-            data.to_vec(),
-        ) else {
+        let Some(rgb) = image::RgbImage::from_vec(frame.width(), frame.height(), data.into())
+        else {
             gst::error!(
                 CAT,
                 "Problem creating image buffer: {}x{} ({})",
@@ -159,32 +163,43 @@ impl BaseSinkImpl for QRTimeStampSink {
                 frame.height(),
                 data.len()
             );
+
             return Err(gst::FlowError::Error);
         };
+        let gray = image::DynamicImage::ImageRgb8(rgb).into_luma8();
 
-        let mut qrcode_image =
-            rqrr::PreparedImage::prepare(image::DynamicImage::ImageRgb8(image_buffer).to_luma8());
+        let mut qrcode_image = rqrr::PreparedImage::prepare(gray);
+
         let grids = qrcode_image.detect_grids();
         if grids.is_empty() {
+            gst::debug!(CAT, "No QRCode grids detected");
+
             return Ok(gst::FlowSuccess::Ok);
         }
-        let (_meta, content) = grids[0].decode().unwrap();
-        let content = content.parse::<u128>().unwrap();
-        let diff = if time.as_millis() > content {
-            (time.as_millis() - content) as i64
+
+        let (_meta, content) = match grids[0].decode() {
+            Ok(decoded) => decoded,
+            Err(error) => {
+                gst::debug!(CAT, "Failed decoding QRCode grid: {error}");
+
+                return Ok(gst::FlowSuccess::Ok);
+            }
+        };
+
+        let content = content.parse::<u64>().unwrap();
+        let latency = if time > content {
+            (time - content) as i64
         } else {
             0
         };
 
-        if let Some(info) = &self.state.lock().unwrap().info {
-            let obj = self.obj();
-            obj.emit_by_name::<()>("on-render", &[&info, &diff]);
-        }
+        let obj = self.obj();
+        obj.emit_by_name::<()>("on-render", &[&info, &latency]);
 
         gst::debug!(
             CAT,
             imp: self,
-            "Time difference: {diff} ms",
+            "Latency: {latency} ms",
         );
 
         Ok(gst::FlowSuccess::Ok)
