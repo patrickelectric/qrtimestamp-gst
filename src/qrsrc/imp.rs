@@ -85,10 +85,13 @@ impl ObjectImpl for QRTimeStampSrc {
     fn constructed(&self) {
         self.parent_constructed();
 
+        // Set the obj defaults
         let obj = self.obj();
         obj.set_live(true);
         obj.set_format(gst::Format::Time);
         obj.set_num_buffers(-1);
+        obj.set_automatic_eos(true);
+        obj.set_do_timestamp(false);
     }
 
     fn signals() -> &'static [glib::subclass::Signal] {
