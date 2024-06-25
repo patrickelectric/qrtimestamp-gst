@@ -31,7 +31,6 @@ struct Settings {
     fps: gst::Fraction,
     width: u32,
     height: u32,
-    num_buffers: i32,
     time_frame_creation: u128,
     time_previous_iteration: u128,
 }
@@ -42,7 +41,6 @@ impl Default for Settings {
             fps: gst::Fraction::from(DEFAULT_FPS),
             width: DEFAULT_SIZE,
             height: DEFAULT_SIZE,
-            num_buffers: -1,
             time_frame_creation: 0,
             time_previous_iteration: 0,
         }
@@ -84,54 +82,13 @@ impl ObjectSubclass for QRTimeStampSrc {
 }
 
 impl ObjectImpl for QRTimeStampSrc {
-    fn properties() -> &'static [glib::ParamSpec] {
-        static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-            vec![glib::ParamSpecInt::builder("num-buffers")
-                .nick("Num Buffers")
-                .blurb("Number of buffers to output before sending EOS (-1 = unlimited)")
-                .minimum(-1)
-                .default_value(-1)
-                .maximum(i32::MAX)
-                .build()]
-        });
-
-        PROPERTIES.as_ref()
-    }
-
     fn constructed(&self) {
         self.parent_constructed();
 
         let obj = self.obj();
         obj.set_live(true);
         obj.set_format(gst::Format::Time);
-    }
-
-    fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
-        match pspec.name() {
-            "num-buffers" => {
-                let mut settings = self.settings.lock().unwrap();
-                let num_buffers = value.get().expect("type checked upstream");
-                gst::info!(
-                    CAT,
-                    imp: self,
-                    "Changing num-buffers from {} to {}",
-                    settings.num_buffers,
-                    num_buffers
-                );
-                settings.num_buffers = num_buffers;
-            }
-            _ => unimplemented!(),
-        }
-    }
-
-    fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
-        match pspec.name() {
-            "num-buffers" => {
-                let settings = self.settings.lock().unwrap();
-                settings.num_buffers.to_value()
-            }
-            _ => unimplemented!(),
-        }
+        obj.set_num_buffers(-1);
     }
 
     fn signals() -> &'static [glib::subclass::Signal] {
