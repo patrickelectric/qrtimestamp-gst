@@ -90,6 +90,34 @@ impl ElementImpl for QRTimeStampSink {
 
         PAD_TEMPLATES.as_ref()
     }
+
+    fn query(&self, query: &mut gst::QueryRef) -> bool {
+        use gst::QueryViewMut;
+        // gst::debug!(CAT, imp: self, "Query: {query:#?}");
+
+        match query.view_mut() {
+            QueryViewMut::Convert(convert_query) => {
+                let state = self.state.lock().unwrap();
+
+                if let Some(info) = &state.info {
+                    let (src_val, dest_fmt) = convert_query.get();
+
+                    if let Some(dest_val) =
+                        gst_video::VideoInfo::convert_generic(info, src_val, dest_fmt)
+                    {
+                        convert_query.set(src_val, dest_val);
+
+                        #[allow(clippy::needless_return)]
+                        return true;
+                    }
+                }
+
+                #[allow(clippy::needless_return)]
+                return false;
+            }
+            _ => BaseSinkImplExt::parent_query(self, query),
+        }
+    }
 }
 
 impl BaseSinkImpl for QRTimeStampSink {
