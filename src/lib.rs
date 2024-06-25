@@ -2,8 +2,8 @@ mod qrsink;
 mod qrsrc;
 
 pub const MINIMUM_SIZE: u32 = 100;
-pub const MINIMUM_FPS: i32 = 10;
-pub const MAXIMUM_FPS: i32 = 240;
+pub const MINIMUM_FPS: i32 = 1;
+pub const MAXIMUM_FPS: i32 = 1000;
 
 fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
     qrsink::register(plugin)?;
