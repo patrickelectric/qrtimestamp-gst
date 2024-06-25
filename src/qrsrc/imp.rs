@@ -166,36 +166,32 @@ impl ElementImpl for QRTimeStampSrc {
 impl BaseSrcImpl for QRTimeStampSrc {
     // Called whenever the input/output caps are changing
     fn set_caps(&self, caps: &gst::Caps) -> Result<(), gst::LoggableError> {
+        let mut settings = self.settings.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
+
         let info = gst_video::VideoInfo::from_caps(caps).map_err(|_| {
             gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {caps}")
         })?;
 
         gst::debug!(CAT, imp: self, "Configuring for caps {caps}");
 
-        self.settings.lock().unwrap().fps = gst_video::VideoInfo::from_caps(caps).unwrap().fps();
-        let width = gst_video::VideoInfo::from_caps(caps).unwrap().width();
-        let height = gst_video::VideoInfo::from_caps(caps).unwrap().height();
+        let width = info.width();
+        let height = info.height();
         if width != height {
             return Err(gst::LoggableError::new(
                 *CAT,
                 bool_error!("Width ({width}) and height ({height}) should be from the same size"),
             ));
         }
-        self.settings.lock().unwrap().width = width;
-        self.settings.lock().unwrap().height = height;
+        settings.width = width;
+        settings.height = height;
+        settings.fps = info.fps();
 
-        let mut state = self.state.lock().unwrap();
-
-        *state = State {
-            info: Some(info),
-            sample_offset: 0,
-        };
-
-        drop(state);
-
-        let _ = self
-            .obj()
-            .post_message(gst::message::Latency::builder().src(&*self.obj()).build());
+        state.info.replace(info);
+        state.accum_rtime = state.accum_rtime + state.running_time;
+        state.accum_frames += state.n_frames;
+        state.running_time = gst::ClockTime::default();
+        state.n_frames = 0;
 
         Ok(())
     }
