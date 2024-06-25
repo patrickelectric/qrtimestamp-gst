@@ -192,10 +192,10 @@ impl BaseSrcImpl for QRTimeStampSrc {
     // Called whenever the input/output caps are changing
     fn set_caps(&self, caps: &gst::Caps) -> Result<(), gst::LoggableError> {
         let info = gst_video::VideoInfo::from_caps(caps).map_err(|_| {
-            gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {}", caps)
+            gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {caps}")
         })?;
 
-        gst::debug!(CAT, imp: self, "Configuring for caps {}", caps);
+        gst::debug!(CAT, imp: self, "Configuring for caps {caps}");
 
         self.settings.lock().unwrap().fps = gst_video::VideoInfo::from_caps(caps).unwrap().fps();
         let width = gst_video::VideoInfo::from_caps(caps).unwrap().width();
