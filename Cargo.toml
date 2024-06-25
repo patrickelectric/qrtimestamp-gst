@@ -31,6 +31,7 @@ lto = true
 opt-level = 3
 debug = true
 panic = 'unwind'
+strip = true
 
 [profile.dev]
 opt-level = 1
