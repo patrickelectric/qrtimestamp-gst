@@ -7,87 +7,61 @@ use gst_base::subclass::base_src::CreateSuccess;
 use gst_base::subclass::prelude::*;
 
 use std::sync::Mutex;
-use std::u32;
 
 use once_cell::sync::Lazy;
-use qrc::QRCode;
+use qrc::{qr_code_to, QRCode};
+
+use crate::MAXIMUM_FPS;
+use crate::MINIMUM_FPS;
+use crate::MINIMUM_SIZE;
 
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
-        "qrcodelinuxtimestamp",
+        "qrtimestampsrc",
         gst::DebugColorFlags::empty(),
         Some("Generate qrcodes based on current linux timestamp"),
     )
 });
 
 const DEFAULT_FPS: i32 = 30;
-const DEFAULT_SIZE: usize = 40;
+const DEFAULT_SIZE: u32 = MINIMUM_SIZE;
 
 #[derive(Debug, Clone, Copy)]
 struct Settings {
     fps: gst::Fraction,
-    width: usize,
-    height: usize,
-    num_buffers: u32,
-    time_frame_creation: u128,
-    time_previous_iteration: u128,
+    width: u32,
+    height: u32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            fps: gst::Fraction::from((1, DEFAULT_FPS)),
+            fps: gst::Fraction::from(DEFAULT_FPS),
             width: DEFAULT_SIZE,
             height: DEFAULT_SIZE,
-            num_buffers: u32::MAX,
-            time_frame_creation: 0,
-            time_previous_iteration: 0,
         }
     }
 }
 
+#[derive(Default)]
 struct State {
     info: Option<gst_video::VideoInfo>,
-    sample_offset: u64,
+
+    /// Total running time for current caps
+    running_time: gst::ClockTime,
+    /// Total frames sent for current caps
+    n_frames: u64,
+
+    /// Accumulated running_time for previous caps
+    accum_rtime: gst::ClockTime,
+    /// Accumulated frames for previous caps
+    accum_frames: u64,
 }
 
-impl Default for State {
-    fn default() -> State {
-        State {
-            info: None,
-            sample_offset: 0,
-        }
-    }
-}
-
-struct ClockWait {
-    clock_id: Option<gst::SingleShotClockId>,
-    flushing: bool,
-}
-
-impl Default for ClockWait {
-    fn default() -> ClockWait {
-        ClockWait {
-            clock_id: None,
-            flushing: true,
-        }
-    }
-}
-
+#[derive(Default)]
 pub struct QRTimeStampSrc {
     settings: Mutex<Settings>,
     state: Mutex<State>,
-    clock_wait: Mutex<ClockWait>,
-}
-
-impl Default for QRTimeStampSrc {
-    fn default() -> Self {
-        Self {
-            settings: Default::default(),
-            state: Default::default(),
-            clock_wait: Default::default(),
-        }
-    }
 }
 
 #[glib::object_subclass]
@@ -98,53 +72,26 @@ impl ObjectSubclass for QRTimeStampSrc {
 }
 
 impl ObjectImpl for QRTimeStampSrc {
-    fn properties() -> &'static [glib::ParamSpec] {
-        static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-            vec![glib::ParamSpecUInt::builder("num-buffers")
-                .minimum(0)
-                .default_value(0)
-                .maximum(u32::MAX)
-                .mutable_playing()
-                .build()]
-        });
-
-        PROPERTIES.as_ref()
-    }
-
     fn constructed(&self) {
         self.parent_constructed();
 
+        // Set the obj defaults
         let obj = self.obj();
         obj.set_live(true);
         obj.set_format(gst::Format::Time);
+        obj.set_num_buffers(-1);
+        obj.set_automatic_eos(true);
+        obj.set_do_timestamp(false);
     }
 
-    fn set_property(&self, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec) {
-        match pspec.name() {
-            "num-buffers" => {
-                let mut settings = self.settings.lock().unwrap();
-                let num_buffers = value.get().expect("type checked upstream");
-                gst::info!(
-                    CAT,
-                    imp: self,
-                    "Changing num-buffers from {} to {}",
-                    settings.num_buffers,
-                    num_buffers
-                );
-                settings.num_buffers = num_buffers;
-            }
-            _ => unimplemented!(),
-        }
-    }
+    fn signals() -> &'static [glib::subclass::Signal] {
+        static SIGNALS: Lazy<Vec<glib::subclass::Signal>> = Lazy::new(|| {
+            vec![glib::subclass::Signal::builder("on-create")
+                .param_types([gst_video::VideoInfo::static_type()])
+                .build()]
+        });
 
-    fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
-        match pspec.name() {
-            "num-buffers" => {
-                let settings = self.settings.lock().unwrap();
-                settings.num_buffers.to_value()
-            }
-            _ => unimplemented!(),
-        }
+        SIGNALS.as_ref()
     }
 }
 
@@ -168,9 +115,11 @@ impl ElementImpl for QRTimeStampSrc {
         static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
             let caps = gst_video::VideoCapsBuilder::default()
                 .format_list([gst_video::VideoFormat::Rgb])
-                .height_range(100..i32::MAX)
-                .width_range(100..i32::MAX)
-                .framerate_range(gst::Fraction::from(10)..gst::Fraction::from(240))
+                .height_range(MINIMUM_SIZE as i32..i32::MAX)
+                .width_range(MINIMUM_SIZE as i32..i32::MAX)
+                .framerate_range(
+                    gst::Fraction::from(MINIMUM_FPS)..=gst::Fraction::from(MAXIMUM_FPS),
+                )
                 .build();
             // The src pad template must be named "src" for basesrc
             // and specific a pad that is always there
@@ -195,48 +144,50 @@ impl ElementImpl for QRTimeStampSrc {
         &self,
         transition: gst::StateChange,
     ) -> Result<gst::StateChangeSuccess, gst::StateChangeError> {
-        // Configure live'ness once here just before starting the source
-        if let gst::StateChange::ReadyToPaused = transition {
-            self.obj().set_live(true);
+        let res = self.parent_change_state(transition);
+        match res {
+            Ok(gst::StateChangeSuccess::Success) => {
+                if transition.next() == gst::State::Paused {
+                    // this is a live source
+                    Ok(gst::StateChangeSuccess::NoPreroll)
+                } else {
+                    Ok(gst::StateChangeSuccess::Success)
+                }
+            }
+            x => x,
         }
-
-        self.parent_change_state(transition)
     }
 }
 
 impl BaseSrcImpl for QRTimeStampSrc {
     // Called whenever the input/output caps are changing
     fn set_caps(&self, caps: &gst::Caps) -> Result<(), gst::LoggableError> {
+        let mut settings = self.settings.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
+
         let info = gst_video::VideoInfo::from_caps(caps).map_err(|_| {
-            gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {}", caps)
+            gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {caps}")
         })?;
 
-        gst::debug!(CAT, imp: self, "Configuring for caps {}", caps);
+        gst::debug!(CAT, imp: self, "Configuring for caps {caps}");
 
-        self.settings.lock().unwrap().fps = gst_video::VideoInfo::from_caps(&caps).unwrap().fps();
-        let width = gst_video::VideoInfo::from_caps(&caps).unwrap().width() as usize;
-        let height = gst_video::VideoInfo::from_caps(&caps).unwrap().height() as usize;
+        let width = info.width();
+        let height = info.height();
         if width != height {
             return Err(gst::LoggableError::new(
                 *CAT,
                 bool_error!("Width ({width}) and height ({height}) should be from the same size"),
             ));
         }
-        self.settings.lock().unwrap().width = width;
-        self.settings.lock().unwrap().height = height;
+        settings.width = width;
+        settings.height = height;
+        settings.fps = info.fps();
 
-        let mut state = self.state.lock().unwrap();
-
-        *state = State {
-            info: Some(info),
-            sample_offset: 0,
-        };
-
-        drop(state);
-
-        let _ = self
-            .obj()
-            .post_message(gst::message::Latency::builder().src(&*self.obj()).build());
+        state.info.replace(info);
+        state.accum_rtime = state.accum_rtime + state.running_time;
+        state.accum_frames += state.n_frames;
+        state.running_time = gst::ClockTime::default();
+        state.n_frames = 0;
 
         Ok(())
     }
@@ -245,21 +196,26 @@ impl BaseSrcImpl for QRTimeStampSrc {
     fn start(&self) -> Result<(), gst::ErrorMessage> {
         // Reset state
         *self.state.lock().unwrap() = Default::default();
-        self.unlock_stop()?;
 
         gst::debug!(CAT, imp: self, "Started");
 
         Ok(())
     }
 
-    // Called when shutting down the element so we can release all stream-related state
-    fn stop(&self) -> Result<(), gst::ErrorMessage> {
-        *self.state.lock().unwrap() = Default::default();
-        self.unlock()?;
+    #[doc(alias = "get_times")]
+    fn times(&self, buffer: &gst::BufferRef) -> (Option<gst::ClockTime>, Option<gst::ClockTime>) {
+        let mut start = None;
+        let mut end = None;
 
-        gst::debug!(CAT, imp: self, "Stopped");
+        // For live sources, sync on the timestamp of the buffer
+        if let Some(timestamp) = buffer.pts() {
+            if let Some(duration) = buffer.duration() {
+                end.replace(timestamp + duration);
+            }
+            start.replace(timestamp);
+        }
 
-        Ok(())
+        (start, end)
     }
 
     fn query(&self, query: &mut gst::QueryRef) -> bool {
@@ -267,49 +223,78 @@ impl BaseSrcImpl for QRTimeStampSrc {
         gst::debug!(CAT, imp: self, "Query: {query:#?}");
 
         match query.view_mut() {
-            QueryViewMut::Latency(_latency) => {
+            QueryViewMut::Convert(convert_query) => {
                 let state = self.state.lock().unwrap();
-                if let Some(ref _info) = state.info {
-                    let fps = self.settings.lock().unwrap().fps;
-                    let latency = gst::ClockTime::SECOND
-                        .mul_div_floor(fps.denom() as u64, fps.numer() as u64)
-                        .unwrap();
-                    gst::info!(CAT, imp: self, "Returning latency {}", latency);
-                    return true;
+
+                if let Some(info) = &state.info {
+                    let (src_val, dest_fmt) = convert_query.get();
+
+                    if let Some(dest_val) =
+                        gst_video::VideoInfo::convert_generic(info, src_val, dest_fmt)
+                    {
+                        convert_query.set(src_val, dest_val);
+
+                        #[allow(clippy::needless_return)]
+                        return true;
+                    }
                 }
+
+                #[allow(clippy::needless_return)]
                 return false;
+            }
+            QueryViewMut::Latency(latency_query) => {
+                let settings = self.settings.lock().unwrap();
+
+                let fps = settings.fps;
+                let latency = gst::ClockTime::SECOND
+                    .mul_div_floor(fps.denom() as u64, fps.numer() as u64)
+                    .unwrap();
+
+                gst::debug!(CAT, imp: self, "Reporting latency of {latency}");
+
+                latency_query.set(true, latency, gst::ClockTime::NONE);
+
+                #[allow(clippy::needless_return)]
+                return true;
+            }
+            QueryViewMut::Duration(duration_query) => {
+                match duration_query.format() {
+                    gst::Format::Bytes => {
+                        let settings = self.settings.lock().unwrap();
+
+                        let bytes = gst_round_up_4(
+                            self.obj().num_buffers() as u32 * settings.width * settings.height,
+                        );
+
+                        let dur = gst::format::Bytes::from_u64(bytes as u64);
+
+                        duration_query.set(dur);
+                    }
+                    gst::Format::Time => {
+                        let settings = self.settings.lock().unwrap();
+
+                        let dur = gst::ClockTime::SECOND
+                            .mul_div_round(settings.fps.denom() as u64, settings.fps.numer() as u64)
+                            .unwrap();
+
+                        duration_query.set(dur);
+                    }
+                    _ =>
+                    {
+                        #[allow(clippy::needless_return)]
+                        return false
+                    }
+                }
+
+                #[allow(clippy::needless_return)]
+                return true;
             }
             _ => BaseSrcImplExt::parent_query(self, query),
         }
     }
 
-    // Fixate the caps. BaseSrc will do some fixation for us, but
-    // as we allow to use something like `fixate_field_nearest_int`
-    fn fixate(&self, caps: gst::Caps) -> gst::Caps {
-        self.parent_fixate(caps)
-    }
-
     fn is_seekable(&self) -> bool {
         false
-    }
-
-    fn unlock(&self) -> Result<(), gst::ErrorMessage> {
-        gst::debug!(CAT, imp: self, "Unlocking");
-        let mut clock_wait = self.clock_wait.lock().unwrap();
-        if let Some(clock_id) = clock_wait.clock_id.take() {
-            clock_id.unschedule();
-        }
-        clock_wait.flushing = true;
-
-        Ok(())
-    }
-
-    fn unlock_stop(&self) -> Result<(), gst::ErrorMessage> {
-        gst::debug!(CAT, imp: self, "Unlock stop");
-        let mut clock_wait = self.clock_wait.lock().unwrap();
-        clock_wait.flushing = false;
-
-        Ok(())
     }
 }
 
@@ -318,134 +303,80 @@ impl PushSrcImpl for QRTimeStampSrc {
         &self,
         _buffer: Option<&mut gst::BufferRef>,
     ) -> Result<CreateSuccess, gst::FlowError> {
-        let mut settings = self.settings.lock().unwrap();
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_micros();
-
-        if settings.time_previous_iteration == 0 {
-            settings.time_previous_iteration = current_time;
-        }
-
+        let settings = self.settings.lock().unwrap();
         let mut state = self.state.lock().unwrap();
+
         if state.info.is_none() {
             gst::element_imp_error!(self, gst::CoreError::Negotiation, ["Have no caps yet"]);
             return Err(gst::FlowError::NotNegotiated);
         };
-        let mut buffer = gst::Buffer::with_size(settings.width * settings.height * 3).unwrap();
+
+        let mut buffer =
+            gst::Buffer::with_size((settings.width * settings.height * 3) as usize).unwrap();
+        let buffer = buffer.make_mut();
+
+        // Time
         {
-            let buffer = buffer.get_mut().unwrap();
-
-            let duration = (gst::ClockTime::SECOND)
-                .mul_div_floor(settings.fps.denom() as u64, settings.fps.numer() as u64)
-                .unwrap();
-
-            let pts = (state.sample_offset * gst::ClockTime::SECOND)
-                .mul_div_floor(settings.fps.denom() as u64, settings.fps.numer() as u64)
-                .unwrap();
-
+            let pts = state.accum_rtime + state.running_time;
             buffer.set_pts(pts);
+            buffer.set_dts(gst::ClockTime::NONE);
+
+            gst::trace!(CAT,
+                imp: self,
+                "Timestamp: {pts} = accumulated {accum_rtime} + running time: {running_time}",
+                pts=pts,
+                accum_rtime=state.accum_rtime,
+                running_time=state.running_time,
+            );
+
+            let offset = state.accum_frames + state.n_frames;
+            buffer.set_offset(offset);
+            state.n_frames += 1;
+
+            let offset_end = offset + 1;
+            buffer.set_offset_end(offset_end);
+
+            let fps = settings.fps;
+            let next_time = (gst::ClockTime::SECOND * state.n_frames)
+                .mul_div_floor(fps.denom() as u64, fps.numer() as u64)
+                .unwrap();
+
+            let duration = next_time - state.running_time;
             buffer.set_duration(duration);
 
-            let mut map = buffer.map_writable().unwrap();
-            let data = map.as_mut_slice();
-
-            {
-                let time = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default();
-                let metadata = (time.as_millis()
-                    + (settings.time_frame_creation + current_time
-                        - settings.time_previous_iteration)
-                        / 1000)
-                    .to_string();
-                let qr = QRCode::from_string(metadata);
-
-                // RGBA to RGB transformation
-                for (output, chunk) in data
-                    .chunks_exact_mut(3)
-                    .zip(qr.to_png(settings.width as u32).as_raw().chunks_exact(4))
-                {
-                    output.copy_from_slice(&chunk[0..3]);
-                }
-            }
-
-            settings.time_frame_creation = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_micros()
-                - current_time;
-            settings.time_previous_iteration = current_time;
+            state.running_time = next_time;
         }
 
-        state.sample_offset += 1;
-        if state.sample_offset > settings.num_buffers as u64 {
-            return Err(gst::FlowError::Eos);
-        }
-        drop(state);
-
-        // If we're live, we are waiting until the time of the last sample in our buffer has
-        // arrived. This is the very reason why we have to report that much latency.
-        // A real live-source would of course only allow us to have the data available after
-        // that latency, e.g. when capturing from a microphone, and no waiting from our side
-        // would be necessary..
-        //
-        // Waiting happens based on the pipeline clock, which means that a real live source
-        // with its own clock would require various translations between the two clocks.
-        // This is out of scope for the tutorial though.
+        // Image
         {
-            let (clock, base_time) = match Option::zip(self.obj().clock(), self.obj().base_time()) {
-                None => return Ok(CreateSuccess::NewBuffer(buffer)),
-                Some(res) => res,
-            };
+            let current_time = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default();
 
-            let segment = self
-                .obj()
-                .segment()
-                .downcast::<gst::format::Time>()
-                .unwrap();
-            let running_time = segment.to_running_time(buffer.pts().opt_add(buffer.duration()));
+            let data = (current_time.as_millis() as u64).to_string();
+            let png = qr_code_to!(data.into(), "png", settings.width);
 
-            // The last sample's clock time is the base time of the element plus the
-            // running time of the last sample
-            let wait_until = match running_time.opt_add(base_time) {
-                Some(wait_until) => wait_until,
-                None => return Ok(CreateSuccess::NewBuffer(buffer)),
-            };
+            let mut buffer_map = buffer.map_writable().unwrap();
+            let rgb_channels = buffer_map.chunks_exact_mut(3);
+            let rgba_channels = png.chunks_exact(4);
 
-            // Store the clock ID in our struct unless we're flushing anyway.
-            // This allows to asynchronously cancel the waiting from unlock()
-            // so that we immediately stop waiting on e.g. shutdown.
-            let mut clock_wait = self.clock_wait.lock().unwrap();
-            if clock_wait.flushing {
-                gst::debug!(CAT, imp: self, "Flushing");
-                return Err(gst::FlowError::Flushing);
-            }
-
-            let id = clock.new_single_shot_id(wait_until);
-            clock_wait.clock_id = Some(id.clone());
-            drop(clock_wait);
-
-            gst::log!(
-                CAT,
-                imp: self,
-                "Waiting until {}, now {}",
-                wait_until,
-                clock.time().display(),
-            );
-            let (res, jitter) = id.wait();
-            gst::log!(CAT, imp: self, "Waited res {:?} jitter {}", res, jitter);
-            self.clock_wait.lock().unwrap().clock_id.take();
-
-            // If the clock ID was unscheduled, unlock() was called
-            // and we should return Flushing immediately.
-            if res == Err(gst::ClockError::Unscheduled) {
-                gst::debug!(CAT, imp: self, "Flushing");
-                return Err(gst::FlowError::Flushing);
-            }
+            // Copy the png (RGBA) into the RGB, omitting the alpha channel
+            rgb_channels
+                .zip(rgba_channels)
+                .for_each(|(dest, src)| dest.copy_from_slice(&src[..3]));
         }
 
-        Ok(CreateSuccess::NewBuffer(buffer))
+        if let Some(info) = &state.info {
+            let obj = self.obj();
+            obj.emit_by_name::<()>("on-create", &[info]);
+        }
+
+        Ok(CreateSuccess::NewBuffer(buffer.to_owned()))
     }
+}
+
+/// Rounds an integer value up to the next multiple of 4.
+/// reference: https://gstreamer.freedesktop.org/documentation/gstreamer/gstutils.html?gi-language=c#GST_ROUND_UP_4
+fn gst_round_up_4(num: u32) -> u32 {
+    (num + 3) & !3
 }

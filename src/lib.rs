@@ -1,9 +1,9 @@
-#![allow(clippy::non_send_fields_in_send_ty, unused_doc_comments)]
-
-use gst::glib;
-
 mod qrsink;
 mod qrsrc;
+
+pub const MINIMUM_SIZE: u32 = 100;
+pub const MINIMUM_FPS: i32 = 1;
+pub const MAXIMUM_FPS: i32 = 1000;
 
 fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
     qrsink::register(plugin)?;
@@ -13,7 +13,7 @@ fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
 
 gst::plugin_define!(
     qrtimestamp, // This name should be the lib name in Cargo.toml without the gst prefix
-    "QRTimeStamp end-to-end test plugin\0",
+    env!("CARGO_PKG_DESCRIPTION"),
     plugin_init,
     concat!(env!("CARGO_PKG_VERSION"), "-", env!("COMMIT_ID")),
     "MIT/X11",
