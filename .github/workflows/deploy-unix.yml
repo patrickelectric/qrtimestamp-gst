@@ -57,7 +57,9 @@ jobs:
 
         TARGETDIR="target/${{ matrix.TARGET }}/release/"
         cd $TARGETDIR
-        tar -cvf $UPLOAD_DIR/libgstqrtimestamp.so.tar libgstqrtimestamp.so
+        ls -al
+        tar -cvf $UPLOAD_DIR/libgstqrtimestamp-${{ matrix.SUFFIX }}.so.tar libgstqrtimestamp.so
+        ls -al $UPLOAD_DIR
 
     - uses: actions/upload-artifact@v4
       with:
@@ -69,7 +71,7 @@ jobs:
       if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')}}
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: 'upload/libgstqrtimestamp-*'
+        file: upload/*
         asset_name: libgstqrtimestamp-${{ matrix.SUFFIX }}
         tag: ${{ github.ref }}
         overwrite: true
