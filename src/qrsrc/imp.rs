@@ -169,7 +169,7 @@ impl BaseSrcImpl for QRTimeStampSrc {
             gst::loggable_error!(CAT, "Failed to build `VideoInfo` from caps {caps}")
         })?;
 
-        gst::debug!(CAT, imp: self, "Configuring for caps {caps}");
+        gst::debug!(CAT, imp = self, "Configuring for caps {caps}");
 
         let width = info.width();
         let height = info.height();
@@ -197,7 +197,7 @@ impl BaseSrcImpl for QRTimeStampSrc {
         // Reset state
         *self.state.lock().unwrap() = Default::default();
 
-        gst::debug!(CAT, imp: self, "Started");
+        gst::debug!(CAT, imp = self, "Started");
 
         Ok(())
     }
@@ -220,7 +220,7 @@ impl BaseSrcImpl for QRTimeStampSrc {
 
     fn query(&self, query: &mut gst::QueryRef) -> bool {
         use gst::QueryViewMut;
-        gst::debug!(CAT, imp: self, "Query: {query:#?}");
+        gst::debug!(CAT, imp = self, "Query: {query:#?}");
 
         match query.view_mut() {
             QueryViewMut::Convert(convert_query) => {
@@ -250,7 +250,7 @@ impl BaseSrcImpl for QRTimeStampSrc {
                     .mul_div_floor(fps.denom() as u64, fps.numer() as u64)
                     .unwrap();
 
-                gst::debug!(CAT, imp: self, "Reporting latency of {latency}");
+                gst::debug!(CAT, imp = self, "Reporting latency of {latency}");
 
                 latency_query.set(true, latency, gst::ClockTime::NONE);
 
@@ -321,12 +321,13 @@ impl PushSrcImpl for QRTimeStampSrc {
             buffer.set_pts(pts);
             buffer.set_dts(gst::ClockTime::NONE);
 
-            gst::trace!(CAT,
-                imp: self,
+            gst::trace!(
+                CAT,
+                imp = self,
                 "Timestamp: {pts} = accumulated {accum_rtime} + running time: {running_time}",
-                pts=pts,
-                accum_rtime=state.accum_rtime,
-                running_time=state.running_time,
+                pts = pts,
+                accum_rtime = state.accum_rtime,
+                running_time = state.running_time,
             );
 
             let offset = state.accum_frames + state.n_frames;
