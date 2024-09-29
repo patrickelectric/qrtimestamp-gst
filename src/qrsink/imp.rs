@@ -196,11 +196,7 @@ impl BaseSinkImpl for QRTimeStampSink {
         let obj = self.obj();
         obj.emit_by_name::<()>("on-render", &[&info, &latency]);
 
-        gst::debug!(
-            CAT,
-            imp: self,
-            "Latency: {latency} ms",
-        );
+        gst::debug!(CAT, imp = self, "Latency: {latency} ms");
 
         Ok(gst::FlowSuccess::Ok)
     }
